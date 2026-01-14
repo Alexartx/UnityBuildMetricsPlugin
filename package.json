@@ -1,0 +1,26 @@
+{
+  "name": "com.buildmetrics.unity-plugin",
+  "version": "1.0.0",
+  "displayName": "Build Metrics",
+  "description": "Track Unity build performance and regressions. Automatically collect build metrics and detect size/time regressions, alerts, build information",
+  "unity": "2020.3",
+  "keywords": [
+    "build",
+    "metrics",
+    "analytics",
+    "ci/cd",
+    "performance",
+    "regression"
+  ],
+  "author": {
+    "name": "Build Metrics",
+    "email": "moonlightember1@gmail.com",
+    "url": "https://moonlightember.com/products/build-metrics"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alexartx/UnityBuildMetricsPlugin.git"
+  },
+  "documentation": "https://moonlightember.com/products/build-metrics/docs"
+}
