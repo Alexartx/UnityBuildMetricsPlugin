@@ -129,7 +129,7 @@ Access settings via: **Tools → Build Metrics → Settings**
 ## Support
 
 - Documentation: [moonlightember.com/products/build-metrics/docs](https://moonlightember.com/products/build-metrics/docs)
-- Email: moonlightember1@gmail.com
+- Email: support@moonlightember.com
 - GitHub Issues: [github.com/Alexartx/UnityBuildMetricsPlugin/issues](https://github.com/Alexartx/UnityBuildMetricsPlugin/issues)
 
 ## License
