@@ -17,7 +17,7 @@ namespace BuildMetrics.Editor
         [MenuItem(MenuRoot + "Settings", false, MenuPriority + 1)]
         public static void OpenSettings()
         {
-            SettingsService.OpenProjectSettings("Project/Build Metrics");
+            SettingsService.OpenUserPreferences("Preferences/Build Metrics");
         }
 
         [MenuItem(MenuRoot + "Upload Last Build", false, MenuPriority + 20)]

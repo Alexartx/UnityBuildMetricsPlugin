@@ -1,3 +1,4 @@
+using System;
 using UnityEditor;
 
 namespace BuildMetrics.Editor
@@ -8,15 +9,50 @@ namespace BuildMetrics.Editor
         private const string ApiUrlPref = "BuildMetrics.ApiUrl";
         private const string AutoUploadPref = "BuildMetrics.AutoUpload";
 
+        // Environment variable names
+        private const string ApiKeyEnvVar = "BUILD_METRICS_API_KEY";
+        private const string ApiUrlEnvVar = "BUILD_METRICS_API_URL";
+
+        /// <summary>
+        /// API Key with environment variable override support.
+        /// Priority: Environment Variable > EditorPrefs
+        /// This allows teams to share a key via environment variable while keeping per-developer keys secure.
+        /// </summary>
         public static string ApiKey
         {
-            get => EditorPrefs.GetString(ApiKeyPref, string.Empty);
+            get
+            {
+                // Check environment variable first (for CI/CD and team sharing)
+                var envKey = Environment.GetEnvironmentVariable(ApiKeyEnvVar);
+                if (!string.IsNullOrEmpty(envKey))
+                {
+                    return envKey;
+                }
+
+                // Fall back to EditorPrefs (per-developer, secure)
+                return EditorPrefs.GetString(ApiKeyPref, string.Empty);
+            }
             set => EditorPrefs.SetString(ApiKeyPref, value ?? string.Empty);
         }
 
+        /// <summary>
+        /// API URL with environment variable override support.
+        /// Priority: Environment Variable > EditorPrefs > Default
+        /// </summary>
         public static string ApiUrl
         {
-            get => EditorPrefs.GetString(ApiUrlPref, "https://buildmetrics-api.onrender.com/api/builds");
+            get
+            {
+                // Check environment variable first (for custom servers)
+                var envUrl = Environment.GetEnvironmentVariable(ApiUrlEnvVar);
+                if (!string.IsNullOrEmpty(envUrl))
+                {
+                    return envUrl;
+                }
+
+                // Fall back to EditorPrefs, then default production URL
+                return EditorPrefs.GetString(ApiUrlPref, "https://api.buildmetrics.moonlightember.com/api/builds");
+            }
             set => EditorPrefs.SetString(ApiUrlPref, value ?? string.Empty);
         }
 
@@ -24,6 +60,14 @@ namespace BuildMetrics.Editor
         {
             get => EditorPrefs.GetBool(AutoUploadPref, true);
             set => EditorPrefs.SetBool(AutoUploadPref, value);
+        }
+
+        /// <summary>
+        /// Check if API key is coming from environment variable
+        /// </summary>
+        public static bool IsUsingEnvironmentApiKey()
+        {
+            return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ApiKeyEnvVar));
         }
     }
 }

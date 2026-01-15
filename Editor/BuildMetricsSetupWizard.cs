@@ -12,14 +12,26 @@ namespace BuildMetrics.Editor
         private string validationMessage = "";
         private MessageType validationMessageType = MessageType.Info;
 
+        // Clipboard detection
+        private bool clipboardChecked = false;
+        private bool clipboardHasKey = false;
+        private string clipboardKey = "";
+        private bool showClipboardBanner = false;
+
         [InitializeOnLoadMethod]
         private static void Initialize()
         {
             // Show wizard on first launch if API key is not configured
             EditorApplication.delayCall += () =>
             {
-                if (string.IsNullOrEmpty(BuildMetricsSettings.ApiKey) &&
-                    !EditorPrefs.GetBool(BuildMetricsConstants.SetupCompletePref, false))
+                // Check if API key is configured
+                bool hasApiKey = !string.IsNullOrEmpty(BuildMetricsSettings.ApiKey);
+
+                // Check if user explicitly dismissed setup (different from completing it)
+                bool userDismissedSetup = EditorPrefs.GetBool(BuildMetricsConstants.SetupDismissedPref, false);
+
+                // Only auto-show if no API key AND user hasn't explicitly dismissed
+                if (!hasApiKey && !userDismissedSetup)
                 {
                     ShowWizard();
                 }
@@ -39,6 +51,64 @@ namespace BuildMetrics.Editor
         {
             apiKey = BuildMetricsSettings.ApiKey;
             autoUpload = BuildMetricsSettings.AutoUpload;
+
+            // Check clipboard for API key on first open
+            CheckClipboardForApiKey();
+        }
+
+        private void CheckClipboardForApiKey()
+        {
+            if (clipboardChecked)
+                return;
+
+            clipboardChecked = true;
+
+            try
+            {
+                string clipboard = EditorGUIUtility.systemCopyBuffer;
+
+                // Check if clipboard contains a Build Metrics API key
+                if (!string.IsNullOrEmpty(clipboard) &&
+                    clipboard.Trim().StartsWith("bm_") &&
+                    clipboard.Trim().Length > 20)
+                {
+                    clipboardKey = clipboard.Trim();
+                    clipboardHasKey = true;
+
+                    // Only show banner if current API key is empty
+                    if (string.IsNullOrEmpty(apiKey))
+                    {
+                        showClipboardBanner = true;
+                    }
+                }
+            }
+            catch
+            {
+                // Clipboard access can fail in some cases, ignore silently
+            }
+        }
+
+        private void UseClipboardKey()
+        {
+            apiKey = clipboardKey;
+            showClipboardBanner = false;
+            Repaint();
+        }
+
+        private void DismissClipboardBanner()
+        {
+            showClipboardBanner = false;
+            Repaint();
+        }
+
+        private void OnDestroy()
+        {
+            // If window is closed without completing setup, mark as dismissed
+            // (so it doesn't keep popping up on every editor restart)
+            if (string.IsNullOrEmpty(BuildMetricsSettings.ApiKey))
+            {
+                EditorPrefs.SetBool(BuildMetricsConstants.SetupDismissedPref, true);
+            }
         }
 
         private void OnGUI()
@@ -56,6 +126,42 @@ namespace BuildMetrics.Editor
             );
 
             GUILayout.Space(15);
+
+            // Clipboard detection banner (opt-in)
+            if (showClipboardBanner)
+            {
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+                GUILayout.Label("🔑 API Key Detected in Clipboard", EditorStyles.boldLabel);
+                GUILayout.Space(3);
+
+                EditorGUILayout.LabelField(
+                    "Found a Build Metrics API key in your clipboard. Would you like to use it?",
+                    EditorStyles.wordWrappedLabel
+                );
+
+                GUILayout.Space(5);
+
+                EditorGUILayout.BeginHorizontal();
+
+                if (GUILayout.Button("Use This Key", GUILayout.Height(25), GUILayout.Width(120)))
+                {
+                    UseClipboardKey();
+                }
+
+                if (GUILayout.Button("No Thanks", GUILayout.Height(25), GUILayout.Width(100)))
+                {
+                    DismissClipboardBanner();
+                }
+
+                GUILayout.FlexibleSpace();
+
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.EndVertical();
+
+                GUILayout.Space(15);
+            }
 
             // Step 1: Get API Key
             GUILayout.Label("Step 1: Get Your API Key", EditorStyles.boldLabel);
@@ -79,10 +185,30 @@ namespace BuildMetrics.Editor
             GUILayout.Label("Step 2: Enter Your API Key", EditorStyles.boldLabel);
             GUILayout.Space(5);
 
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.Label("API Key:", GUILayout.Width(80));
-            apiKey = EditorGUILayout.TextField(apiKey);
-            EditorGUILayout.EndHorizontal();
+            // Check if using environment variable
+            bool usingEnvVar = BuildMetricsSettings.IsUsingEnvironmentApiKey();
+
+            if (usingEnvVar)
+            {
+                EditorGUILayout.HelpBox(
+                    "✓ API key detected from environment variable BUILD_METRICS_API_KEY\n\n" +
+                    "Environment variable takes priority. You can skip this setup.",
+                    MessageType.Info);
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label("API Key:", GUILayout.Width(80));
+                GUI.enabled = false;
+                EditorGUILayout.TextField(BuildMetricsSettings.ApiKey);
+                GUI.enabled = true;
+                EditorGUILayout.EndHorizontal();
+            }
+            else
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label("API Key:", GUILayout.Width(80));
+                apiKey = EditorGUILayout.TextField(apiKey);
+                EditorGUILayout.EndHorizontal();
+            }
 
             GUILayout.Space(5);
 
@@ -119,6 +245,19 @@ namespace BuildMetrics.Editor
             if (GUILayout.Button("Documentation", GUILayout.Height(30)))
             {
                 Application.OpenURL(BuildMetricsConstants.DocsUrl);
+            }
+
+            if (GUILayout.Button("Skip Setup", GUILayout.Height(30)))
+            {
+                if (EditorUtility.DisplayDialog(
+                    "Skip Setup?",
+                    "You can configure Build Metrics later via:\nTools → Build Metrics → Setup Wizard",
+                    "Skip",
+                    "Cancel"))
+                {
+                    EditorPrefs.SetBool(BuildMetricsConstants.SetupDismissedPref, true);
+                    Close();
+                }
             }
 
             GUILayout.FlexibleSpace();
@@ -183,6 +322,11 @@ namespace BuildMetrics.Editor
         {
             BuildMetricsSettings.ApiKey = apiKey;
             BuildMetricsSettings.AutoUpload = autoUpload;
+
+            // Clear the dismissed flag so wizard can show again if API key is removed later
+            EditorPrefs.DeleteKey(BuildMetricsConstants.SetupDismissedPref);
+
+            // Mark setup as complete (for informational purposes)
             EditorPrefs.SetBool(BuildMetricsConstants.SetupCompletePref, true);
 
             EditorUtility.DisplayDialog(

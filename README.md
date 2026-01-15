@@ -46,19 +46,87 @@ Download and import manually. Works offline.
 
 ## Quick Start
 
+### ⚡ Fast Setup (Recommended)
+
 1. **Get your API key**
    - Sign up at [app.buildmetrics.moonlightember.com](https://app.buildmetrics.moonlightember.com)
-   - Copy your API key from the dashboard
+   - Create a project
+   - Click **"Copy API Key"** button in dashboard
 
-2. **Configure the plugin**
-   - In Unity, go to Tools → Build Metrics → Settings
-   - Paste your API key
-   - Click "Save"
+2. **Open Unity Setup Wizard**
+   - In Unity: **Tools → Build Metrics → Setup Wizard**
+   - The wizard will **auto-detect your copied API key** and ask: "Found API key in clipboard — use it?"
+   - Click **"Use This Key"** → **"Complete Setup"**
+   - Done! 🎉
 
 3. **Build your game**
    - Build your project as usual
    - Metrics are sent automatically after each build
    - View results in your [dashboard](https://app.buildmetrics.moonlightember.com/dashboard)
+
+### Manual Setup (Alternative)
+
+If clipboard detection doesn't work or you prefer manual setup:
+
+1. Copy your API key from the dashboard
+2. In Unity: **Tools → Build Metrics → Settings**
+3. Paste your API key
+4. Build your project
+
+## Configuration
+
+### API Key Options
+
+The plugin supports two ways to configure your API key:
+
+#### Option 1: EditorPrefs (Per-Developer) ✅ Recommended
+
+- Each developer configures their own API key
+- Stored locally on their machine (never committed to Git)
+- Most secure option
+- Best for: Individual developers, tracking per-developer metrics
+
+**How to configure:**
+1. Tools → Build Metrics → Setup Wizard
+2. Enter your API key
+3. Click "Complete Setup"
+
+#### Option 2: Environment Variable (Team/CI)
+
+- Shared API key via environment variable `BUILD_METRICS_API_KEY`
+- Environment variable takes priority over EditorPrefs
+- Never store in Git - use shell profile or CI secrets
+- Best for: Teams sharing one key, CI/CD pipelines
+
+**How to configure:**
+
+**macOS/Linux:**
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export BUILD_METRICS_API_KEY="bm_your_api_key_here"
+```
+
+**Windows:**
+```powershell
+# PowerShell (persistent)
+[System.Environment]::SetEnvironmentVariable('BUILD_METRICS_API_KEY', 'bm_your_api_key_here', 'User')
+```
+
+**CI/CD:**
+```yaml
+# GitHub Actions example
+env:
+  BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+```
+
+### Settings
+
+Access settings via: **Tools → Build Metrics → Settings**
+
+- **API Key**: Your unique identifier (or set via environment variable)
+- **Auto Upload**: Enable/disable automatic upload after builds
+
+When using environment variable, the settings UI shows: "✓ Using API key from environment variable"
 
 ## Usage
 
@@ -72,14 +140,6 @@ If you prefer to control when metrics are sent:
 
 1. Disable auto-upload in settings
 2. Use the menu: Tools → Build Metrics → Upload Last Build
-
-### Settings
-
-Access settings via: **Tools → Build Metrics → Settings**
-
-- **API Key**: Your unique identifier
-- **API URL**: Server endpoint (default: production)
-- **Auto Upload**: Enable/disable automatic upload
 
 ## What Gets Tracked?
 
@@ -124,12 +184,12 @@ Access settings via: **Tools → Build Metrics → Settings**
 
 - Check Unity console for specific errors
 - Disable auto-upload temporarily
-- Contact support: moonlightember1@gmail.com
+- Contact support: support@moonlightember.com
 
 ## Support
 
 - Documentation: [moonlightember.com/products/build-metrics/docs](https://moonlightember.com/products/build-metrics/docs)
-- Email: moonlightember1@gmail.com
+- Email: support@moonlightember.com
 - GitHub Issues: [github.com/Alexartx/UnityBuildMetricsPlugin/issues](https://github.com/Alexartx/UnityBuildMetricsPlugin/issues)
 
 ## License
