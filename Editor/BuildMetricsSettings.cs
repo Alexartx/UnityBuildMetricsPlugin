@@ -39,7 +39,7 @@ namespace BuildMetrics.Editor
         /// API URL with environment variable override support.
         /// Priority: Environment Variable > EditorPrefs > Default
         /// </summary>
-        public static string ApiUrl => EditorPrefs.GetString(ApiUrlPref, "https://api.buildmetrics.moonlightember.com/api/builds");
+        public static string ApiUrl => EditorPrefs.GetString(ApiUrlPref, "https://buildmetrics-api.onrender.com/api/builds");
 
         public static bool AutoUpload
         {
