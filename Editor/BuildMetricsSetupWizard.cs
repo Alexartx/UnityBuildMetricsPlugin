@@ -103,10 +103,26 @@ namespace BuildMetrics.Editor
 
         private void OnDestroy()
         {
-            // If window is closed without completing setup, mark as dismissed
-            // (so it doesn't keep popping up on every editor restart)
-            if (string.IsNullOrEmpty(BuildMetricsSettings.ApiKey))
+            // Auto-save API key if user entered one
+            if (!string.IsNullOrEmpty(apiKey) && apiKey != BuildMetricsSettings.ApiKey)
             {
+                BuildMetricsSettings.ApiKey = apiKey;
+                BuildMetricsSettings.AutoUpload = autoUpload;
+            }
+
+            // Update setup status based on whether API key is configured
+            if (!string.IsNullOrEmpty(BuildMetricsSettings.ApiKey))
+            {
+                // Clear the dismissed flag so wizard can show again if API key is removed later
+                EditorPrefs.DeleteKey(BuildMetricsConstants.SetupDismissedPref);
+
+                // Mark setup as complete
+                EditorPrefs.SetBool(BuildMetricsConstants.SetupCompletePref, true);
+            }
+            else
+            {
+                // No API key configured - mark as dismissed
+                // (so it doesn't keep popping up on every editor restart)
                 EditorPrefs.SetBool(BuildMetricsConstants.SetupDismissedPref, true);
             }
         }
@@ -262,14 +278,14 @@ namespace BuildMetrics.Editor
 
             GUILayout.FlexibleSpace();
 
-            GUI.enabled = !string.IsNullOrEmpty(apiKey);
-            if (GUILayout.Button("Complete Setup", GUILayout.Height(30), GUILayout.Width(150)))
-            {
-                CompleteSetup();
-            }
-            GUI.enabled = true;
-
             EditorGUILayout.EndHorizontal();
+
+            // Auto-save info
+            GUILayout.Space(5);
+            EditorGUILayout.HelpBox(
+                "Settings are saved automatically when you close this window.",
+                MessageType.Info
+            );
 
             GUILayout.Space(10);
 
@@ -303,7 +319,7 @@ namespace BuildMetrics.Editor
 
                 // Note: This is a dry-run validation
                 // In a real implementation, you'd have a validation endpoint
-                validationMessage = "API key format is valid! Click 'Complete Setup' to save.";
+                validationMessage = "API key format is valid! Settings will be saved when you close this window.";
                 validationMessageType = MessageType.Info;
             }
             catch (System.Exception ex)
@@ -318,26 +334,5 @@ namespace BuildMetrics.Editor
             }
         }
 
-        private void CompleteSetup()
-        {
-            BuildMetricsSettings.ApiKey = apiKey;
-            BuildMetricsSettings.AutoUpload = autoUpload;
-
-            // Clear the dismissed flag so wizard can show again if API key is removed later
-            EditorPrefs.DeleteKey(BuildMetricsConstants.SetupDismissedPref);
-
-            // Mark setup as complete (for informational purposes)
-            EditorPrefs.SetBool(BuildMetricsConstants.SetupCompletePref, true);
-
-            EditorUtility.DisplayDialog(
-                "Setup Complete!",
-                "Build Metrics is now configured.\n\n" +
-                "Build your project and metrics will be sent to your dashboard automatically.\n\n" +
-                $"View your metrics at:\n{BuildMetricsConstants.DashboardUrl}",
-                "OK"
-            );
-
-            Close();
-        }
     }
 }
