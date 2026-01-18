@@ -19,13 +19,11 @@ namespace BuildMetrics.Editor
         {
             if (!IsGitAvailable())
             {
-                UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Git not available, skipping git info collection");
                 return null;
             }
 
             if (!IsGitRepository())
             {
-                UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Not a git repository, skipping git info collection");
                 return null;
             }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
@@ -46,8 +47,6 @@ namespace BuildMetrics.Editor
                 else
                 {
                     // Fallback: Use GetFiles() API (Unity 2022.2+, works for Android, WebGL, all platforms)
-                    UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} PackedAssets not available, trying GetFiles() API");
-
 #if UNITY_2022_2_OR_NEWER
                     var buildFiles = report.GetFiles();
                     if (buildFiles != null && buildFiles.Length > 0)
@@ -56,11 +55,9 @@ namespace BuildMetrics.Editor
                     }
                     else
                     {
-                        UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} No file data available in build report");
                         return null;
                     }
 #else
-                    UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} File breakdown requires Unity 2022.2+ for this platform");
                     return null;
 #endif
                 }
@@ -76,10 +73,6 @@ namespace BuildMetrics.Editor
                     other = categories["other"]
                 };
 
-                var totalSize = categories.Values.Sum(c => c.size);
-                var totalCount = categories.Values.Sum(c => c.count);
-                UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected file breakdown: {totalCount} files, {totalSize / 1024 / 1024:F2} MB");
-
                 return breakdown;
             }
             catch (Exception ex)
@@ -93,7 +86,6 @@ namespace BuildMetrics.Editor
             PackedAssets[] packedAssets,
             Dictionary<string, FileCategoryData> categories)
         {
-            int fileCount = 0;
             foreach (var packedAsset in packedAssets)
             {
                 foreach (var content in packedAsset.contents)
@@ -103,10 +95,8 @@ namespace BuildMetrics.Editor
                     data.size += (long)content.packedSize;
                     data.count++;
                     categories[category] = data;
-                    fileCount++;
                 }
             }
-            UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected {fileCount} files from PackedAssets API");
         }
 
 #if UNITY_2022_2_OR_NEWER
@@ -114,7 +104,6 @@ namespace BuildMetrics.Editor
             BuildFile[] buildFiles,
             Dictionary<string, FileCategoryData> categories)
         {
-            int fileCount = 0;
             foreach (var file in buildFiles)
             {
                 // Skip files without a path (can happen for some internal Unity files)
@@ -130,9 +119,7 @@ namespace BuildMetrics.Editor
                 data.size += (long)file.size;
                 data.count++;
                 categories[category] = data;
-                fileCount++;
             }
-            UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected {fileCount} files from GetFiles() API (after filtering)");
         }
 
         private static bool ShouldSkipFile(string path)
@@ -308,21 +295,32 @@ namespace BuildMetrics.Editor
 #endif
                 }
 
-                // If no assets found, return minimal breakdown
+                // If no assets found from build report, try parsing Editor.log
                 if (allAssets.Count == 0)
                 {
-                    UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} No Assets/** files found in build");
-                    return new AssetBreakdown
+                    CollectAssetsFromEditorLog(categories, allAssets);
+
+                    if (allAssets.Count == 0)
                     {
-                        hasAssets = false,
-                        totalAssetsSize = 0,
-                        totalAssets = 0,
-                        topAssets = new TopFile[0]
-                    };
+                        return new AssetBreakdown
+                        {
+                            hasAssets = false,
+                            totalAssetsSize = 0,
+                            totalAssets = 0,
+                            topAssets = new TopFile[0]
+                        };
+                    }
                 }
 
-                // Get top 20 largest assets
-                var topAssets = allAssets
+                // Deduplicate assets by path, keeping the largest size entry for each asset
+                // (Unity reports same asset multiple times: original + compressed + mipmaps)
+                var deduplicatedAssets = allAssets
+                    .GroupBy(a => a.path)
+                    .Select(g => g.OrderByDescending(a => a.size).First())
+                    .ToList();
+
+                // Get top 20 largest unique assets
+                var topAssets = deduplicatedAssets
                     .OrderByDescending(f => f.size)
                     .Take(20)
                     .ToArray();
@@ -330,8 +328,8 @@ namespace BuildMetrics.Editor
                 var breakdown = new AssetBreakdown
                 {
                     hasAssets = true,
-                    totalAssetsSize = allAssets.Sum(a => a.size),
-                    totalAssets = allAssets.Count,
+                    totalAssetsSize = deduplicatedAssets.Sum(a => a.size),
+                    totalAssets = deduplicatedAssets.Count,
                     textures = categories["textures"],
                     audio = categories["audio"],
                     models = categories["models"],
@@ -346,8 +344,6 @@ namespace BuildMetrics.Editor
                     otherAssets = categories["otherAssets"],
                     topAssets = topAssets
                 };
-
-                UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected asset breakdown: {allAssets.Count} assets from Assets/**, {breakdown.totalAssetsSize / 1024 / 1024:F2} MB total");
 
                 return breakdown;
             }
@@ -367,8 +363,8 @@ namespace BuildMetrics.Editor
             {
                 foreach (var content in packedAsset.contents)
                 {
-                    // Only include files from Assets/**
-                    if (!content.sourceAssetPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                    // Only include files from Assets/** (case-sensitive to exclude build output like assets/bin/Data/)
+                    if (!content.sourceAssetPath.StartsWith("Assets/", StringComparison.Ordinal))
                         continue;
 
                     var category = CategorizeAssetByType(content.sourceAssetPath);
@@ -398,9 +394,10 @@ namespace BuildMetrics.Editor
                 if (string.IsNullOrEmpty(file.path))
                     continue;
 
-                // Only include files that have "Assets/" in the path
-                if (!file.path.Contains("/Assets/", StringComparison.OrdinalIgnoreCase) &&
-                    !file.path.Contains("\\Assets\\", StringComparison.OrdinalIgnoreCase))
+                // Only include files from Assets/** (case-sensitive to exclude build output like assets/bin/Data/)
+                if (!file.path.StartsWith("Assets/", StringComparison.Ordinal) &&
+                    !file.path.Contains("/Assets/", StringComparison.Ordinal) &&
+                    !file.path.Contains("\\Assets\\", StringComparison.Ordinal))
                     continue;
 
                 var category = CategorizeAssetByType(file.path);
@@ -431,6 +428,170 @@ namespace BuildMetrics.Editor
             return fullPath;
         }
 #endif
+
+        /// <summary>
+        /// Parse Editor.log to extract asset breakdown when BuildReport APIs fail (e.g., IL2CPP builds).
+        /// Unity writes detailed asset info to Editor.log after every build.
+        /// </summary>
+        private static void CollectAssetsFromEditorLog(
+            Dictionary<string, AssetCategoryData> categories,
+            List<TopFile> allAssets)
+        {
+            try
+            {
+                var editorLogPath = GetEditorLogPath();
+
+                if (string.IsNullOrEmpty(editorLogPath) || !File.Exists(editorLogPath))
+                {
+                    return;
+                }
+
+                // Read the last portion of the log (build info is at the end)
+                var logLines = File.ReadAllLines(editorLogPath);
+
+                // Find the "Used Assets and files from the Resources folder" section
+                // Unity only writes this on clean builds, not incremental builds
+                // Search backwards through ENTIRE log to find most recent clean build
+                int assetsFound = 0;
+                int assetsSectionStartLine = -1;
+
+                // Search backwards to find the LAST occurrence of "Used Assets and files from the Resources folder"
+                for (int i = logLines.Length - 1; i >= 0; i--)
+                {
+                    if (logLines[i].Contains("Used Assets and files from the Resources folder"))
+                    {
+                        assetsSectionStartLine = i;
+                        break;
+                    }
+                }
+
+                if (assetsSectionStartLine == -1)
+                {
+                    return;
+                }
+
+                // Parse assets starting from the line after the header
+                for (int i = assetsSectionStartLine + 1; i < logLines.Length; i++)
+                {
+                    var line = logLines[i];
+
+                    // End of assets section (empty line or dashed line)
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("---"))
+                    {
+                        break;
+                    }
+
+                    // Parse asset lines (format: " 1.2 mb   0.5% Assets/Textures/hero.png")
+                    // Only include Assets/ paths (skip Built-in, Resources/, Packages/)
+                    if (line.Contains("Assets/") && !line.Contains("Built-in"))
+                    {
+                        var assetInfo = ParseEditorLogAssetLine(line);
+                        if (assetInfo != null)
+                        {
+                            var category = CategorizeAssetByType(assetInfo.Value.path);
+                            var data = categories[category];
+                            data.size += assetInfo.Value.size;
+                            data.count++;
+                            categories[category] = data;
+
+                            allAssets.Add(new TopFile
+                            {
+                                path = assetInfo.Value.path,
+                                size = assetInfo.Value.size,
+                                category = category
+                            });
+
+                            assetsFound++;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to collect assets: {ex.Message}");
+            }
+        }
+
+        private static string GetEditorLogPath()
+        {
+#if UNITY_EDITOR_OSX
+            return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal),
+                "Library/Logs/Unity/Editor.log");
+#elif UNITY_EDITOR_WIN
+            return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Unity/Editor/Editor.log");
+#elif UNITY_EDITOR_LINUX
+            return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal),
+                ".config/unity3d/Editor.log");
+#else
+            return null;
+#endif
+        }
+
+        private static (string path, long size)? ParseEditorLogAssetLine(string line)
+        {
+            try
+            {
+                // Format: " 1.2 mb   0.5% Assets/Textures/hero.png"
+                // or:     " 0.5 kb   0.0% Assets/Scripts/Player.cs"
+
+                var parts = line.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                if (parts.Length < 3)
+                    return null;
+
+                // Find the Assets/ part
+                string assetPath = null;
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    if (parts[i].StartsWith("Assets/", StringComparison.Ordinal))
+                    {
+                        // Join remaining parts in case path has spaces
+                        assetPath = string.Join(" ", parts, i, parts.Length - i);
+                        break;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(assetPath))
+                    return null;
+
+                // Parse size (first value, e.g., "1.2")
+                if (!float.TryParse(parts[0], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out float sizeValue))
+                    return null;
+
+                // Parse unit (second value, e.g., "mb", "kb", "gb")
+                // Trim to handle extra spaces/tabs between columns
+                var unit = parts[1].Trim().ToLowerInvariant();
+
+                long sizeBytes = 0;
+
+                switch (unit)
+                {
+                    case "b":
+                    case "bytes":
+                        sizeBytes = (long)sizeValue;
+                        break;
+                    case "kb":
+                        sizeBytes = (long)(sizeValue * 1024);
+                        break;
+                    case "mb":
+                        sizeBytes = (long)(sizeValue * 1024 * 1024);
+                        break;
+                    case "gb":
+                        sizeBytes = (long)(sizeValue * 1024 * 1024 * 1024);
+                        break;
+                    default:
+                        return null;
+                }
+
+                return (assetPath, sizeBytes);
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         private static string CategorizeAssetByType(string path)
         {
