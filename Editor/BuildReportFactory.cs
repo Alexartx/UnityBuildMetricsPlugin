@@ -22,12 +22,19 @@ namespace BuildMetrics.Editor
             var artifactInfo = GetArtifactInfo(summary.outputPath, summary.platform);
             var outputSizeBytes = GetOutputSize(summary.outputPath, summary.totalSize, artifactInfo);
             var buildOptions = summary.options;
+
+#if UNITY_2021_2_OR_NEWER
+            var namedBuildTarget = UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildPipeline.GetBuildTargetGroup(summary.platform));
+            var scriptingBackend = PlayerSettings.GetScriptingBackend(namedBuildTarget).ToString();
+#else
             var buildTargetGroup = BuildPipeline.GetBuildTargetGroup(summary.platform);
             var scriptingBackend = PlayerSettings.GetScriptingBackend(buildTargetGroup).ToString();
+#endif
 
             // Collect git info and file breakdown
             var gitInfo = GitInfoCollector.Collect();
             var fileBreakdown = FileBreakdownCollector.Collect(report);
+            var assetBreakdown = FileBreakdownCollector.CollectAssetBreakdown(report);
 
             // Get platform-specific build number
             var platformBuildNumber = GetPlatformBuildNumber(summary.platform);
@@ -67,7 +74,8 @@ namespace BuildMetrics.Editor
                 buildName = PlayerSettings.bundleVersion,
                 buildNumber = platformBuildNumber,
                 git = gitInfo,
-                fileBreakdown = fileBreakdown
+                fileBreakdown = fileBreakdown,
+                assetBreakdown = assetBreakdown
             };
         }
 

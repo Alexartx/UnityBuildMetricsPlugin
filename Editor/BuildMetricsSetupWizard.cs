@@ -8,13 +8,11 @@ namespace BuildMetrics.Editor
         private string apiKey = "";
         private bool autoUpload = true;
         private Vector2 scrollPosition;
-        private bool isValidating = false;
         private string validationMessage = "";
         private MessageType validationMessageType = MessageType.Info;
 
         // Clipboard detection
         private bool clipboardChecked = false;
-        private bool clipboardHasKey = false;
         private string clipboardKey = "";
         private bool showClipboardBanner = false;
 
@@ -73,7 +71,6 @@ namespace BuildMetrics.Editor
                     clipboard.Trim().Length > 20)
                 {
                     clipboardKey = clipboard.Trim();
-                    clipboardHasKey = true;
 
                     // Only show banner if current API key is empty
                     if (string.IsNullOrEmpty(apiKey))
@@ -292,7 +289,7 @@ namespace BuildMetrics.Editor
             EditorGUILayout.EndScrollView();
         }
 
-        private async void ValidateApiKey()
+        private void ValidateApiKey()
         {
             if (string.IsNullOrWhiteSpace(apiKey))
             {
@@ -301,7 +298,6 @@ namespace BuildMetrics.Editor
                 return;
             }
 
-            isValidating = true;
             validationMessage = "Validating API key...";
             validationMessageType = MessageType.Info;
             Repaint();
@@ -329,7 +325,6 @@ namespace BuildMetrics.Editor
             }
             finally
             {
-                isValidating = false;
                 Repaint();
             }
         }

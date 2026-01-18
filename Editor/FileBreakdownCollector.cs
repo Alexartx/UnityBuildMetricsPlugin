@@ -36,15 +36,12 @@ namespace BuildMetrics.Editor
                     ["other"] = new FileCategoryData { size = 0, count = 0 }
                 };
 
-                // Track all files for top files list
-                var allFiles = new List<TopFile>();
-
                 // Try PackedAssets first (works for iOS, Standalone)
                 var packedAssets = report.packedAssets;
                 if (packedAssets != null && packedAssets.Length > 0)
                 {
                     // Use packedAssets API
-                    CollectFromPackedAssets(packedAssets, categories, allFiles);
+                    CollectFromPackedAssets(packedAssets, categories);
                 }
                 else
                 {
@@ -55,7 +52,7 @@ namespace BuildMetrics.Editor
                     var buildFiles = report.GetFiles();
                     if (buildFiles != null && buildFiles.Length > 0)
                     {
-                        CollectFromBuildFiles(buildFiles, categories, allFiles);
+                        CollectFromBuildFiles(buildFiles, categories);
                     }
                     else
                     {
@@ -68,19 +65,6 @@ namespace BuildMetrics.Editor
 #endif
                 }
 
-                // Verify we collected some files
-                if (allFiles.Count == 0)
-                {
-                    UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} No files collected from build report");
-                    return null;
-                }
-
-                // Get top 20 largest files
-                var topFiles = allFiles
-                    .OrderByDescending(f => f.size)
-                    .Take(20)
-                    .ToArray();
-
                 var breakdown = new FileBreakdown
                 {
                     scripts = categories["scripts"],
@@ -89,13 +73,12 @@ namespace BuildMetrics.Editor
                     plugins = categories["plugins"],
                     scenes = categories["scenes"],
                     shaders = categories["shaders"],
-                    other = categories["other"],
-                    topFiles = topFiles
+                    other = categories["other"]
                 };
 
                 var totalSize = categories.Values.Sum(c => c.size);
                 var totalCount = categories.Values.Sum(c => c.count);
-                UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected file breakdown: {totalCount} files, {totalSize / 1024 / 1024:F2} MB (top {topFiles.Length} tracked)");
+                UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected file breakdown: {totalCount} files, {totalSize / 1024 / 1024:F2} MB");
 
                 return breakdown;
             }
@@ -108,9 +91,9 @@ namespace BuildMetrics.Editor
 
         private static void CollectFromPackedAssets(
             PackedAssets[] packedAssets,
-            Dictionary<string, FileCategoryData> categories,
-            List<TopFile> allFiles)
+            Dictionary<string, FileCategoryData> categories)
         {
+            int fileCount = 0;
             foreach (var packedAsset in packedAssets)
             {
                 foreach (var content in packedAsset.contents)
@@ -120,25 +103,18 @@ namespace BuildMetrics.Editor
                     data.size += (long)content.packedSize;
                     data.count++;
                     categories[category] = data;
-
-                    // Track file for top files list
-                    allFiles.Add(new TopFile
-                    {
-                        path = content.sourceAssetPath,
-                        size = (long)content.packedSize,
-                        category = category
-                    });
+                    fileCount++;
                 }
             }
-            UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected {allFiles.Count} files from PackedAssets API");
+            UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected {fileCount} files from PackedAssets API");
         }
 
 #if UNITY_2022_2_OR_NEWER
         private static void CollectFromBuildFiles(
             BuildFile[] buildFiles,
-            Dictionary<string, FileCategoryData> categories,
-            List<TopFile> allFiles)
+            Dictionary<string, FileCategoryData> categories)
         {
+            int fileCount = 0;
             foreach (var file in buildFiles)
             {
                 // Skip files without a path (can happen for some internal Unity files)
@@ -154,16 +130,9 @@ namespace BuildMetrics.Editor
                 data.size += (long)file.size;
                 data.count++;
                 categories[category] = data;
-
-                // Track file for top files list with cleaned path
-                allFiles.Add(new TopFile
-                {
-                    path = CleanFilePath(file.path),
-                    size = (long)file.size,
-                    category = category
-                });
+                fileCount++;
             }
-            UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected {allFiles.Count} files from GetFiles() API (after filtering)");
+            UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected {fileCount} files from GetFiles() API (after filtering)");
         }
 
         private static bool ShouldSkipFile(string path)
@@ -289,6 +258,266 @@ namespace BuildMetrics.Editor
 
             // Other (textures, audio, models, etc.)
             return "other";
+        }
+
+        /// <summary>
+        /// Collect asset breakdown - only files from Assets/** categorized by asset type.
+        /// Returns null if no project assets found.
+        /// </summary>
+        public static AssetBreakdown CollectAssetBreakdown(BuildReport report)
+        {
+            if (report == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var categories = new Dictionary<string, AssetCategoryData>
+                {
+                    ["textures"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["audio"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["models"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["animations"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["prefabs"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["scenes"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["scripts"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["shaders"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["materials"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["fonts"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["videos"] = new AssetCategoryData { size = 0, count = 0 },
+                    ["otherAssets"] = new AssetCategoryData { size = 0, count = 0 }
+                };
+
+                var allAssets = new List<TopFile>();
+
+                // Try PackedAssets first
+                var packedAssets = report.packedAssets;
+                if (packedAssets != null && packedAssets.Length > 0)
+                {
+                    CollectAssetsFromPackedAssets(packedAssets, categories, allAssets);
+                }
+                else
+                {
+#if UNITY_2022_2_OR_NEWER
+                    var buildFiles = report.GetFiles();
+                    if (buildFiles != null && buildFiles.Length > 0)
+                    {
+                        CollectAssetsFromBuildFiles(buildFiles, categories, allAssets);
+                    }
+#endif
+                }
+
+                // If no assets found, return minimal breakdown
+                if (allAssets.Count == 0)
+                {
+                    UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} No Assets/** files found in build");
+                    return new AssetBreakdown
+                    {
+                        hasAssets = false,
+                        totalAssetsSize = 0,
+                        totalAssets = 0,
+                        topAssets = new TopFile[0]
+                    };
+                }
+
+                // Get top 20 largest assets
+                var topAssets = allAssets
+                    .OrderByDescending(f => f.size)
+                    .Take(20)
+                    .ToArray();
+
+                var breakdown = new AssetBreakdown
+                {
+                    hasAssets = true,
+                    totalAssetsSize = allAssets.Sum(a => a.size),
+                    totalAssets = allAssets.Count,
+                    textures = categories["textures"],
+                    audio = categories["audio"],
+                    models = categories["models"],
+                    animations = categories["animations"],
+                    prefabs = categories["prefabs"],
+                    scenes = categories["scenes"],
+                    scripts = categories["scripts"],
+                    shaders = categories["shaders"],
+                    materials = categories["materials"],
+                    fonts = categories["fonts"],
+                    videos = categories["videos"],
+                    otherAssets = categories["otherAssets"],
+                    topAssets = topAssets
+                };
+
+                UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Collected asset breakdown: {allAssets.Count} assets from Assets/**, {breakdown.totalAssetsSize / 1024 / 1024:F2} MB total");
+
+                return breakdown;
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to collect asset breakdown: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static void CollectAssetsFromPackedAssets(
+            PackedAssets[] packedAssets,
+            Dictionary<string, AssetCategoryData> categories,
+            List<TopFile> allAssets)
+        {
+            foreach (var packedAsset in packedAssets)
+            {
+                foreach (var content in packedAsset.contents)
+                {
+                    // Only include files from Assets/**
+                    if (!content.sourceAssetPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var category = CategorizeAssetByType(content.sourceAssetPath);
+                    var data = categories[category];
+                    data.size += (long)content.packedSize;
+                    data.count++;
+                    categories[category] = data;
+
+                    allAssets.Add(new TopFile
+                    {
+                        path = content.sourceAssetPath,
+                        size = (long)content.packedSize,
+                        category = category
+                    });
+                }
+            }
+        }
+
+#if UNITY_2022_2_OR_NEWER
+        private static void CollectAssetsFromBuildFiles(
+            BuildFile[] buildFiles,
+            Dictionary<string, AssetCategoryData> categories,
+            List<TopFile> allAssets)
+        {
+            foreach (var file in buildFiles)
+            {
+                if (string.IsNullOrEmpty(file.path))
+                    continue;
+
+                // Only include files that have "Assets/" in the path
+                if (!file.path.Contains("/Assets/", StringComparison.OrdinalIgnoreCase) &&
+                    !file.path.Contains("\\Assets\\", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var category = CategorizeAssetByType(file.path);
+                var data = categories[category];
+                data.size += (long)file.size;
+                data.count++;
+                categories[category] = data;
+
+                allAssets.Add(new TopFile
+                {
+                    path = ExtractAssetsPath(file.path),
+                    size = (long)file.size,
+                    category = category
+                });
+            }
+        }
+
+        private static string ExtractAssetsPath(string fullPath)
+        {
+            var assetsIndex = fullPath.IndexOf("/Assets/", StringComparison.OrdinalIgnoreCase);
+            if (assetsIndex >= 0)
+                return fullPath.Substring(assetsIndex + 1); // "Assets/..."
+
+            assetsIndex = fullPath.IndexOf("\\Assets\\", StringComparison.OrdinalIgnoreCase);
+            if (assetsIndex >= 0)
+                return fullPath.Substring(assetsIndex + 1); // "Assets\..."
+
+            return fullPath;
+        }
+#endif
+
+        private static string CategorizeAssetByType(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return "otherAssets";
+
+            var lowerPath = path.ToLowerInvariant();
+
+            // Textures
+            if (lowerPath.EndsWith(".png") || lowerPath.EndsWith(".jpg") || lowerPath.EndsWith(".jpeg") ||
+                lowerPath.EndsWith(".tga") || lowerPath.EndsWith(".psd") || lowerPath.EndsWith(".tif") ||
+                lowerPath.EndsWith(".tiff") || lowerPath.EndsWith(".gif") || lowerPath.EndsWith(".bmp") ||
+                lowerPath.EndsWith(".exr") || lowerPath.EndsWith(".hdr"))
+            {
+                return "textures";
+            }
+
+            // Audio
+            if (lowerPath.EndsWith(".mp3") || lowerPath.EndsWith(".wav") || lowerPath.EndsWith(".ogg") ||
+                lowerPath.EndsWith(".aiff") || lowerPath.EndsWith(".aif") || lowerPath.EndsWith(".mod") ||
+                lowerPath.EndsWith(".it") || lowerPath.EndsWith(".s3m") || lowerPath.EndsWith(".xm"))
+            {
+                return "audio";
+            }
+
+            // Models
+            if (lowerPath.EndsWith(".fbx") || lowerPath.EndsWith(".dae") || lowerPath.EndsWith(".3ds") ||
+                lowerPath.EndsWith(".dxf") || lowerPath.EndsWith(".obj") || lowerPath.EndsWith(".skp") ||
+                lowerPath.EndsWith(".blend") || lowerPath.EndsWith(".mb") || lowerPath.EndsWith(".ma"))
+            {
+                return "models";
+            }
+
+            // Animations
+            if (lowerPath.EndsWith(".anim") || lowerPath.EndsWith(".controller") ||
+                lowerPath.EndsWith(".overridecontroller"))
+            {
+                return "animations";
+            }
+
+            // Prefabs
+            if (lowerPath.EndsWith(".prefab"))
+            {
+                return "prefabs";
+            }
+
+            // Scenes
+            if (lowerPath.EndsWith(".unity"))
+            {
+                return "scenes";
+            }
+
+            // Scripts
+            if (lowerPath.EndsWith(".cs") || lowerPath.EndsWith(".js") || lowerPath.EndsWith(".boo"))
+            {
+                return "scripts";
+            }
+
+            // Shaders
+            if (lowerPath.EndsWith(".shader") || lowerPath.EndsWith(".cginc") || lowerPath.EndsWith(".hlsl") ||
+                lowerPath.EndsWith(".compute") || lowerPath.EndsWith(".shadergraph") || lowerPath.EndsWith(".shadersubgraph"))
+            {
+                return "shaders";
+            }
+
+            // Materials
+            if (lowerPath.EndsWith(".mat"))
+            {
+                return "materials";
+            }
+
+            // Fonts
+            if (lowerPath.EndsWith(".ttf") || lowerPath.EndsWith(".otf") ||
+                (lowerPath.EndsWith(".asset") && lowerPath.Contains("textmesh")))
+            {
+                return "fonts";
+            }
+
+            // Videos
+            if (lowerPath.EndsWith(".mp4") || lowerPath.EndsWith(".mov") || lowerPath.EndsWith(".avi") ||
+                lowerPath.EndsWith(".webm") || lowerPath.EndsWith(".ogv"))
+            {
+                return "videos";
+            }
+
+            // Other assets
+            return "otherAssets";
         }
     }
 }

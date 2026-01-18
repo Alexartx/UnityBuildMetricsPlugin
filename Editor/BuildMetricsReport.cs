@@ -30,6 +30,7 @@ namespace BuildMetrics.Editor
         public string buildNumber;
         public GitInfo git;
         public FileBreakdown fileBreakdown;
+        public AssetBreakdown assetBreakdown;
     }
 
     [Serializable]
@@ -66,7 +67,6 @@ namespace BuildMetrics.Editor
         public FileCategoryData scenes;
         public FileCategoryData shaders;
         public FileCategoryData other;
-        public TopFile[] topFiles; // Top 20 largest files
     }
 
     [Serializable]
@@ -82,5 +82,33 @@ namespace BuildMetrics.Editor
         public string path;
         public long size;
         public string category;
+    }
+
+    [Serializable]
+    public class AssetBreakdown
+    {
+        public bool hasAssets;
+        public long totalAssetsSize;
+        public int totalAssets;
+        public AssetCategoryData textures;
+        public AssetCategoryData audio;
+        public AssetCategoryData models;
+        public AssetCategoryData animations;
+        public AssetCategoryData prefabs;
+        public AssetCategoryData scenes;
+        public AssetCategoryData scripts;
+        public AssetCategoryData shaders;
+        public AssetCategoryData materials;
+        public AssetCategoryData fonts;
+        public AssetCategoryData videos;
+        public AssetCategoryData otherAssets;
+        public TopFile[] topAssets; // Top 20 largest assets from Assets/**
+    }
+
+    [Serializable]
+    public class AssetCategoryData
+    {
+        public long size;
+        public int count;
     }
 }
