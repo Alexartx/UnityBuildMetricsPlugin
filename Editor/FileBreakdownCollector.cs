@@ -37,12 +37,25 @@ namespace BuildMetrics.Editor
                     ["other"] = new FileCategoryData { size = 0, count = 0 }
                 };
 
+                // Track "other" subcategories for detailed breakdown
+                var otherSubcategories = new Dictionary<string, FileCategorySubData>
+                {
+                    ["spriteAtlases"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["textures"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["meshes"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["audio"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["assetBundles"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["unityRuntime"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["fonts"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["other"] = new FileCategorySubData { size = 0, count = 0 }
+                };
+
                 // Try PackedAssets first (works for iOS, Standalone)
                 var packedAssets = report.packedAssets;
                 if (packedAssets != null && packedAssets.Length > 0)
                 {
                     // Use packedAssets API
-                    CollectFromPackedAssets(packedAssets, categories);
+                    CollectFromPackedAssets(packedAssets, categories, otherSubcategories);
                 }
                 else
                 {
@@ -51,7 +64,7 @@ namespace BuildMetrics.Editor
                     var buildFiles = report.GetFiles();
                     if (buildFiles != null && buildFiles.Length > 0)
                     {
-                        CollectFromBuildFiles(buildFiles, categories);
+                        CollectFromBuildFiles(buildFiles, categories, otherSubcategories);
                     }
                     else
                     {
@@ -61,6 +74,19 @@ namespace BuildMetrics.Editor
                     return null;
 #endif
                 }
+
+                // Add detailed breakdown to "other" category
+                categories["other"].breakdown = new OtherBreakdown
+                {
+                    spriteAtlases = otherSubcategories["spriteAtlases"],
+                    textures = otherSubcategories["textures"],
+                    meshes = otherSubcategories["meshes"],
+                    audio = otherSubcategories["audio"],
+                    assetBundles = otherSubcategories["assetBundles"],
+                    unityRuntime = otherSubcategories["unityRuntime"],
+                    fonts = otherSubcategories["fonts"],
+                    other = otherSubcategories["other"]
+                };
 
                 var breakdown = new FileBreakdown
                 {
@@ -84,7 +110,8 @@ namespace BuildMetrics.Editor
 
         private static void CollectFromPackedAssets(
             PackedAssets[] packedAssets,
-            Dictionary<string, FileCategoryData> categories)
+            Dictionary<string, FileCategoryData> categories,
+            Dictionary<string, FileCategorySubData> otherSubcategories)
         {
             foreach (var packedAsset in packedAssets)
             {
@@ -95,6 +122,16 @@ namespace BuildMetrics.Editor
                     data.size += (long)content.packedSize;
                     data.count++;
                     categories[category] = data;
+
+                    // If categorized as "other", subcategorize it
+                    if (category == "other")
+                    {
+                        var subcategory = CategorizeOtherFile(content.sourceAssetPath);
+                        var subData = otherSubcategories[subcategory];
+                        subData.size += (long)content.packedSize;
+                        subData.count++;
+                        otherSubcategories[subcategory] = subData;
+                    }
                 }
             }
         }
@@ -102,7 +139,8 @@ namespace BuildMetrics.Editor
 #if UNITY_2022_2_OR_NEWER
         private static void CollectFromBuildFiles(
             BuildFile[] buildFiles,
-            Dictionary<string, FileCategoryData> categories)
+            Dictionary<string, FileCategoryData> categories,
+            Dictionary<string, FileCategorySubData> otherSubcategories)
         {
             foreach (var file in buildFiles)
             {
@@ -119,6 +157,16 @@ namespace BuildMetrics.Editor
                 data.size += (long)file.size;
                 data.count++;
                 categories[category] = data;
+
+                // If categorized as "other", subcategorize it
+                if (category == "other")
+                {
+                    var subcategory = CategorizeOtherFile(file.path);
+                    var subData = otherSubcategories[subcategory];
+                    subData.size += (long)file.size;
+                    subData.count++;
+                    otherSubcategories[subcategory] = subData;
+                }
             }
         }
 
@@ -244,6 +292,55 @@ namespace BuildMetrics.Editor
             }
 
             // Other (textures, audio, models, etc.)
+            return "other";
+        }
+
+        /// <summary>
+        /// Categorize files within "other" category for detailed breakdown.
+        /// </summary>
+        private static string CategorizeOtherFile(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return "other";
+
+            var lowerPath = path.ToLowerInvariant();
+
+            // Sprite Atlases
+            if (lowerPath.EndsWith(".spriteatlas") || lowerPath.EndsWith(".spriteatlasv2"))
+                return "spriteAtlases";
+
+            // Textures (compressed formats in build)
+            if (lowerPath.EndsWith(".pvrtc") || lowerPath.EndsWith(".etc") || lowerPath.EndsWith(".etc2") ||
+                lowerPath.EndsWith(".astc") || lowerPath.EndsWith(".dds") || lowerPath.EndsWith(".ktx") ||
+                lowerPath.Contains("texture") || lowerPath.Contains(".png") || lowerPath.Contains(".jpg"))
+                return "textures";
+
+            // Meshes (compiled)
+            if (lowerPath.Contains("mesh") || lowerPath.EndsWith(".mesh"))
+                return "meshes";
+
+            // Audio (in build)
+            if (lowerPath.EndsWith(".mp3") || lowerPath.EndsWith(".ogg") || lowerPath.EndsWith(".wav") ||
+                lowerPath.EndsWith(".m4a") || lowerPath.EndsWith(".aac"))
+                return "audio";
+
+            // Asset Bundles (Addressables)
+            if (lowerPath.EndsWith(".bundle") || lowerPath.Contains("assetbundle") ||
+                lowerPath.Contains("/aa/") || lowerPath.Contains("\\aa\\")) // Addressables folder
+                return "assetBundles";
+
+            // Unity Runtime Files
+            if (lowerPath.Contains("sharedassets") || lowerPath.Contains("globalgamemanagers") ||
+                lowerPath.Contains("level") || lowerPath.EndsWith(".resource") ||
+                lowerPath.EndsWith(".assets") || lowerPath.EndsWith(".resS"))
+                return "unityRuntime";
+
+            // Fonts
+            if (lowerPath.EndsWith(".ttf") || lowerPath.EndsWith(".otf") ||
+                lowerPath.Contains("font"))
+                return "fonts";
+
+            // Truly unknown
             return "other";
         }
 

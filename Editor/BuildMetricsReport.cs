@@ -74,6 +74,27 @@ namespace BuildMetrics.Editor
     {
         public long size;
         public int count;
+        public OtherBreakdown breakdown; // Optional: detailed breakdown for "other" category
+    }
+
+    [Serializable]
+    public class OtherBreakdown
+    {
+        public FileCategorySubData spriteAtlases;
+        public FileCategorySubData textures;
+        public FileCategorySubData meshes;
+        public FileCategorySubData audio;
+        public FileCategorySubData assetBundles;
+        public FileCategorySubData unityRuntime;
+        public FileCategorySubData fonts;
+        public FileCategorySubData other; // Truly unknown files
+    }
+
+    [Serializable]
+    public class FileCategorySubData
+    {
+        public long size;
+        public int count;
     }
 
     [Serializable]
