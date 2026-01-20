@@ -445,6 +445,7 @@ namespace BuildMetrics.Editor
         /// <summary>
         /// Parse Editor.log to extract asset breakdown when BuildReport APIs fail (e.g., IL2CPP builds).
         /// Unity writes detailed asset info to Editor.log after every build.
+        /// NOTE: All Unity projects share the same Editor.log, so we validate the data belongs to THIS project.
         /// </summary>
         private static void CollectAssetsFromEditorLog(
             Dictionary<string, AssetCategoryData> categories,
@@ -458,6 +459,11 @@ namespace BuildMetrics.Editor
                 {
                     return;
                 }
+
+                // Get current project identifiers for validation
+                var currentProjectPath = UnityEngine.Application.dataPath; // Ends with "/Assets"
+                var projectRoot = System.IO.Path.GetDirectoryName(currentProjectPath);
+                var projectName = System.IO.Path.GetFileName(projectRoot);
 
                 // Read the last portion of the log (build info is at the end)
                 var logLines = File.ReadAllLines(editorLogPath);
@@ -480,8 +486,39 @@ namespace BuildMetrics.Editor
 
                 if (assetsSectionStartLine == -1)
                 {
+                    UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Editor.log: No 'Used Assets' section found. This is normal for incremental builds.");
                     return;
                 }
+
+                // CRITICAL: Validate this section belongs to the current project
+                // Search backwards from asset section to find project markers (within 1000 lines)
+                bool projectMatches = false;
+                int searchStart = Math.Max(0, assetsSectionStartLine - 1000);
+
+                for (int i = assetsSectionStartLine - 1; i >= searchStart; i--)
+                {
+                    var line = logLines[i];
+
+                    // Check for project path markers (Unity logs these during build)
+                    if (line.Contains(projectRoot) ||
+                        line.Contains(currentProjectPath) ||
+                        (line.Contains("COMMAND LINE ARGUMENTS") && i + 10 < logLines.Length &&
+                         string.Join("\n", logLines, i, Math.Min(10, logLines.Length - i)).Contains(projectRoot)))
+                    {
+                        projectMatches = true;
+                        break;
+                    }
+                }
+
+                if (!projectMatches)
+                {
+                    UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Editor.log contains data from a different project. Will use cached breakdown if available. " +
+                        "For accurate data, do a clean build (delete Library folder) or restart Unity.");
+                    return;
+                }
+
+                // Project validated - parse assets from this section
+                UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Editor.log validated for current project, parsing asset breakdown...");
 
                 // Parse assets starting from the line after the header
                 for (int i = assetsSectionStartLine + 1; i < logLines.Length; i++)
@@ -517,6 +554,11 @@ namespace BuildMetrics.Editor
                             assetsFound++;
                         }
                     }
+                }
+
+                if (assetsFound > 0)
+                {
+                    UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Successfully collected {assetsFound} assets from Editor.log");
                 }
             }
             catch (Exception ex)
