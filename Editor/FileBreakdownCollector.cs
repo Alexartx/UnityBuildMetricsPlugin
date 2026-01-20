@@ -249,6 +249,8 @@ namespace BuildMetrics.Editor
 
         /// <summary>
         /// Collect asset breakdown - only files from Assets/** categorized by asset type.
+        /// Falls back to Editor.log parsing if BuildReport APIs fail.
+        /// Falls back to cached data if Editor.log is unavailable or from different project.
         /// Returns null if no project assets found.
         /// </summary>
         public static AssetBreakdown CollectAssetBreakdown(BuildReport report)
@@ -300,8 +302,16 @@ namespace BuildMetrics.Editor
                 {
                     CollectAssetsFromEditorLog(categories, allAssets);
 
+                    // If still no assets, try reading from cache
                     if (allAssets.Count == 0)
                     {
+                        var cachedBreakdown = ReadAssetBreakdownFromCache();
+                        if (cachedBreakdown != null)
+                        {
+                            UnityEngine.Debug.Log($"{BuildMetricsConstants.LogPrefix} Using cached asset breakdown from previous build");
+                            return cachedBreakdown;
+                        }
+
                         return new AssetBreakdown
                         {
                             hasAssets = false,
@@ -344,6 +354,9 @@ namespace BuildMetrics.Editor
                     otherAssets = categories["otherAssets"],
                     topAssets = topAssets
                 };
+
+                // Save successful breakdown to cache for future use
+                SaveAssetBreakdownToCache(breakdown);
 
                 return breakdown;
             }
@@ -680,5 +693,86 @@ namespace BuildMetrics.Editor
             // Other assets
             return "otherAssets";
         }
+
+        #region Asset Breakdown Cache
+
+        [System.Serializable]
+        private class AssetBreakdownCache
+        {
+            public string projectPath;
+            public AssetBreakdown breakdown;
+        }
+
+        private static string GetCacheFilePath()
+        {
+            var projectPath = UnityEngine.Application.dataPath; // Ends with "/Assets"
+            var projectRoot = System.IO.Path.GetDirectoryName(projectPath);
+            var buildReportsDir = System.IO.Path.Combine(projectRoot, "BuildReports");
+
+            if (!Directory.Exists(buildReportsDir))
+            {
+                Directory.CreateDirectory(buildReportsDir);
+            }
+
+            return System.IO.Path.Combine(buildReportsDir, "asset_breakdown_cache.json");
+        }
+
+        private static void SaveAssetBreakdownToCache(AssetBreakdown breakdown)
+        {
+            try
+            {
+                var cache = new AssetBreakdownCache
+                {
+                    projectPath = UnityEngine.Application.dataPath,
+                    breakdown = breakdown
+                };
+
+                var json = UnityEngine.JsonUtility.ToJson(cache, true);
+                var cachePath = GetCacheFilePath();
+                File.WriteAllText(cachePath, json);
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to save asset breakdown cache: {ex.Message}");
+            }
+        }
+
+        private static AssetBreakdown ReadAssetBreakdownFromCache()
+        {
+            try
+            {
+                var cachePath = GetCacheFilePath();
+
+                if (!File.Exists(cachePath))
+                {
+                    return null;
+                }
+
+                var json = File.ReadAllText(cachePath);
+                var cache = UnityEngine.JsonUtility.FromJson<AssetBreakdownCache>(json);
+
+                if (cache == null || cache.breakdown == null)
+                {
+                    return null;
+                }
+
+                // Validate cache is for the current project
+                var currentProjectPath = UnityEngine.Application.dataPath;
+                if (cache.projectPath != currentProjectPath)
+                {
+                    UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Asset breakdown cache is from a different project, ignoring");
+                    return null;
+                }
+
+                return cache.breakdown;
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to read asset breakdown cache: {ex.Message}");
+                return null;
+            }
+        }
+
+        #endregion
     }
 }
