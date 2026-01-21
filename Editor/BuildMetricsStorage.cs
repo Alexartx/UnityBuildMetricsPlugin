@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using UnityEngine;
 
@@ -14,10 +15,19 @@ namespace BuildMetrics.Editor
         public static string WriteReport(BuildMetricsReport report)
         {
             Directory.CreateDirectory(ReportsDirectory);
-            var path = Path.Combine(ReportsDirectory, ReportFileName);
+
+            // Write to BuildReports/build_metrics.json (latest build, for reference)
+            var latestPath = Path.Combine(ReportsDirectory, ReportFileName);
             var json = JsonUtility.ToJson(report, true);
-            File.WriteAllText(path, json);
-            return path;
+            File.WriteAllText(latestPath, json);
+
+            // Also write unique copy with timestamp to prevent overwrites
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var uniqueFileName = $"build_metrics_{timestamp}_{report.buildGuid.Substring(0, 8)}.json";
+            var uniquePath = Path.Combine(ReportsDirectory, uniqueFileName);
+            File.WriteAllText(uniquePath, json);
+
+            return uniquePath; // Return unique path for queueing
         }
 
         public static string Enqueue(string reportPath)
