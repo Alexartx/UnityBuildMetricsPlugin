@@ -87,6 +87,26 @@ namespace BuildMetrics.Editor
         public FileCategorySubData assetBundles;
         public FileCategorySubData unityRuntime;
         public FileCategorySubData fonts;
+
+        // iOS-specific categories (actionable)
+        public FileCategorySubData iosAssetCatalogs; // Assets.car
+        public FileCategorySubData iosAppResources; // .png, .jpg, .storyboardc, .nib
+
+        // Android-specific categories (actionable)
+        public FileCategorySubData androidAddressables; // assets/aa/, .bundle
+        public FileCategorySubData androidUnityData; // assets/bin/Data/, sharedassets
+        public FileCategorySubData androidResources; // res/, resources.arsc
+        public FileCategorySubData androidCode; // classes.dex
+
+        // WebGL-specific categories
+        public FileCategorySubData webglData; // *.data
+        public FileCategorySubData webglWasm; // *.wasm
+        public FileCategorySubData webglJs; // *.js
+
+        // System files (collapsed by default, not user-actionable)
+        public FileCategorySubData iosSystem; // Frameworks, SwiftSupport, PlugIns, CodeSignature
+        public FileCategorySubData androidSystem; // lib/, jniLibs/
+
         public FileCategorySubData other; // Truly unknown files
     }
 

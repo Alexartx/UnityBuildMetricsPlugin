@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
@@ -26,6 +27,8 @@ namespace BuildMetrics.Editor
 
             try
             {
+                var platform = report.summary.platform;
+
                 var categories = new Dictionary<string, FileCategoryData>
                 {
                     ["scripts"] = new FileCategoryData { size = 0, count = 0 },
@@ -47,6 +50,24 @@ namespace BuildMetrics.Editor
                     ["assetBundles"] = new FileCategorySubData { size = 0, count = 0 },
                     ["unityRuntime"] = new FileCategorySubData { size = 0, count = 0 },
                     ["fonts"] = new FileCategorySubData { size = 0, count = 0 },
+
+                    // iOS-specific
+                    ["iosAssetCatalogs"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["iosAppResources"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["iosSystem"] = new FileCategorySubData { size = 0, count = 0 },
+
+                    // Android-specific
+                    ["androidAddressables"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["androidUnityData"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["androidResources"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["androidCode"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["androidSystem"] = new FileCategorySubData { size = 0, count = 0 },
+
+                    // WebGL-specific
+                    ["webglData"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["webglWasm"] = new FileCategorySubData { size = 0, count = 0 },
+                    ["webglJs"] = new FileCategorySubData { size = 0, count = 0 },
+
                     ["other"] = new FileCategorySubData { size = 0, count = 0 }
                 };
 
@@ -55,7 +76,7 @@ namespace BuildMetrics.Editor
                 if (packedAssets != null && packedAssets.Length > 0)
                 {
                     // Use packedAssets API
-                    CollectFromPackedAssets(packedAssets, categories, otherSubcategories);
+                    CollectFromPackedAssets(packedAssets, categories, otherSubcategories, platform);
                 }
                 else
                 {
@@ -64,7 +85,7 @@ namespace BuildMetrics.Editor
                     var buildFiles = report.GetFiles();
                     if (buildFiles != null && buildFiles.Length > 0)
                     {
-                        CollectFromBuildFiles(buildFiles, categories, otherSubcategories);
+                        CollectFromBuildFiles(buildFiles, categories, otherSubcategories, platform);
                     }
                     else
                     {
@@ -85,6 +106,24 @@ namespace BuildMetrics.Editor
                     assetBundles = otherSubcategories["assetBundles"],
                     unityRuntime = otherSubcategories["unityRuntime"],
                     fonts = otherSubcategories["fonts"],
+
+                    // iOS-specific
+                    iosAssetCatalogs = otherSubcategories["iosAssetCatalogs"],
+                    iosAppResources = otherSubcategories["iosAppResources"],
+                    iosSystem = otherSubcategories["iosSystem"],
+
+                    // Android-specific
+                    androidAddressables = otherSubcategories["androidAddressables"],
+                    androidUnityData = otherSubcategories["androidUnityData"],
+                    androidResources = otherSubcategories["androidResources"],
+                    androidCode = otherSubcategories["androidCode"],
+                    androidSystem = otherSubcategories["androidSystem"],
+
+                    // WebGL-specific
+                    webglData = otherSubcategories["webglData"],
+                    webglWasm = otherSubcategories["webglWasm"],
+                    webglJs = otherSubcategories["webglJs"],
+
                     other = otherSubcategories["other"]
                 };
 
@@ -111,7 +150,8 @@ namespace BuildMetrics.Editor
         private static void CollectFromPackedAssets(
             PackedAssets[] packedAssets,
             Dictionary<string, FileCategoryData> categories,
-            Dictionary<string, FileCategorySubData> otherSubcategories)
+            Dictionary<string, FileCategorySubData> otherSubcategories,
+            UnityEditor.BuildTarget platform)
         {
             foreach (var packedAsset in packedAssets)
             {
@@ -126,7 +166,7 @@ namespace BuildMetrics.Editor
                     // If categorized as "other", subcategorize it
                     if (category == "other")
                     {
-                        var subcategory = CategorizeOtherFile(content.sourceAssetPath);
+                        var subcategory = CategorizeOtherFile(content.sourceAssetPath, platform);
                         var subData = otherSubcategories[subcategory];
                         subData.size += (long)content.packedSize;
                         subData.count++;
@@ -140,7 +180,8 @@ namespace BuildMetrics.Editor
         private static void CollectFromBuildFiles(
             BuildFile[] buildFiles,
             Dictionary<string, FileCategoryData> categories,
-            Dictionary<string, FileCategorySubData> otherSubcategories)
+            Dictionary<string, FileCategorySubData> otherSubcategories,
+            UnityEditor.BuildTarget platform)
         {
             foreach (var file in buildFiles)
             {
@@ -161,7 +202,7 @@ namespace BuildMetrics.Editor
                 // If categorized as "other", subcategorize it
                 if (category == "other")
                 {
-                    var subcategory = CategorizeOtherFile(file.path);
+                    var subcategory = CategorizeOtherFile(file.path, platform);
                     var subData = otherSubcategories[subcategory];
                     subData.size += (long)file.size;
                     subData.count++;
@@ -297,13 +338,77 @@ namespace BuildMetrics.Editor
 
         /// <summary>
         /// Categorize files within "other" category for detailed breakdown.
+        /// Platform-aware categorization for iOS, Android, and WebGL.
         /// </summary>
-        private static string CategorizeOtherFile(string path)
+        private static string CategorizeOtherFile(string path, UnityEditor.BuildTarget platform)
         {
             if (string.IsNullOrWhiteSpace(path))
                 return "other";
 
             var lowerPath = path.ToLowerInvariant();
+
+            // Platform-specific categorization
+            if (platform == UnityEditor.BuildTarget.iOS)
+            {
+                // iOS Asset Catalogs (actionable - user can optimize)
+                if (lowerPath.Contains("assets.car") || lowerPath.Contains("/assets.car"))
+                    return "iosAssetCatalogs";
+
+                // iOS App Resources (actionable - UI images, storyboards, nibs)
+                if (lowerPath.EndsWith(".storyboardc") || lowerPath.EndsWith(".nib") ||
+                    lowerPath.EndsWith(".storyboard") || lowerPath.Contains("/base.lproj/") ||
+                    (lowerPath.Contains(".app/") && (lowerPath.EndsWith(".png") || lowerPath.EndsWith(".jpg"))))
+                    return "iosAppResources";
+
+                // iOS System files (NOT actionable - collapse by default)
+                if (lowerPath.Contains("/frameworks/") || lowerPath.Contains(".framework/") ||
+                    lowerPath.Contains("/swiftsupport/") || lowerPath.Contains("/plugins/") ||
+                    lowerPath.Contains("_codesignature/") || lowerPath.Contains("/meta-inf/") ||
+                    lowerPath.EndsWith(".dylib") || lowerPath.Contains("/extensions/"))
+                    return "iosSystem";
+            }
+            else if (platform == UnityEditor.BuildTarget.Android)
+            {
+                // Android Addressables/Bundles (actionable)
+                if (lowerPath.Contains("/assets/aa/") || lowerPath.Contains("\\assets\\aa\\") ||
+                    (lowerPath.Contains("/assets/") && lowerPath.EndsWith(".bundle")))
+                    return "androidAddressables";
+
+                // Android Unity Data (actionable - scenes, resources)
+                if (lowerPath.Contains("/assets/bin/data/") || lowerPath.Contains("\\assets\\bin\\data\\") ||
+                    lowerPath.Contains("sharedassets") || lowerPath.EndsWith(".resS"))
+                    return "androidUnityData";
+
+                // Android Resources (actionable - icons, splash, localization)
+                if (lowerPath.Contains("/res/") || lowerPath.Contains("\\res\\") ||
+                    lowerPath.Contains("resources.arsc"))
+                    return "androidResources";
+
+                // Android Code (semi-actionable - IL2CPP stripping)
+                if (lowerPath.Contains("classes") && lowerPath.EndsWith(".dex"))
+                    return "androidCode";
+
+                // Android System (NOT actionable - native libs)
+                if (lowerPath.Contains("/lib/") || lowerPath.Contains("/jnilibs/") ||
+                    lowerPath.Contains("\\lib\\") || lowerPath.Contains("\\jnilibs\\"))
+                    return "androidSystem";
+            }
+            else if (platform == UnityEditor.BuildTarget.WebGL)
+            {
+                // WebGL Data file (actionable)
+                if (lowerPath.EndsWith(".data"))
+                    return "webglData";
+
+                // WebGL WASM (semi-actionable via code stripping)
+                if (lowerPath.EndsWith(".wasm"))
+                    return "webglWasm";
+
+                // WebGL JS (semi-actionable)
+                if (lowerPath.EndsWith(".js"))
+                    return "webglJs";
+            }
+
+            // Cross-platform categories (work for all platforms)
 
             // Sprite Atlases
             if (lowerPath.EndsWith(".spriteatlas") || lowerPath.EndsWith(".spriteatlasv2"))
@@ -324,9 +429,9 @@ namespace BuildMetrics.Editor
                 lowerPath.EndsWith(".m4a") || lowerPath.EndsWith(".aac"))
                 return "audio";
 
-            // Asset Bundles (Addressables)
+            // Asset Bundles (Addressables) - fallback if not caught by platform-specific
             if (lowerPath.EndsWith(".bundle") || lowerPath.Contains("assetbundle") ||
-                lowerPath.Contains("/aa/") || lowerPath.Contains("\\aa\\")) // Addressables folder
+                lowerPath.Contains("/aa/") || lowerPath.Contains("\\aa\\"))
                 return "assetBundles";
 
             // Unity Runtime Files
