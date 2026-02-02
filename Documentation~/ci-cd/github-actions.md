@@ -21,33 +21,32 @@ GameCI requires a Unity license. Choose your license type:
 <details>
 <summary><b>Unity Personal (Free)</b></summary>
 
-1. **Activate Unity Hub locally**
-   - Open Unity Hub
-   - Sign in and activate Personal license
+Unity Personal licenses require a `.ulf` license file for CI/CD activation.
 
-2. **Find .ulf file:**
-   - **Windows:** `C:\ProgramData\Unity\Unity_lic.ulf`
-   - **macOS:** `~/.local/share/unity3d/Unity/Unity_lic.ulf`
+**How to get your .ulf file:**
 
-3. **Add to GitHub Secrets:**
-   ```
-   Settings → Secrets → Actions → New repository secret
+1. Open Unity Hub → Manage Licenses
+2. Click "Manual Activation"
+3. Save the `.alf` file
+4. Upload to [Unity Manual License](https://license.unity3d.com/manual)
+5. Download the `.ulf` file
+6. Copy its entire contents into the `UNITY_LICENSE` secret
 
-   Name: UNITY_LICENSE
-   Value: <paste .ulf file content>
-
-   Name: UNITY_EMAIL
-   Value: your@email.com
-
-   Name: UNITY_PASSWORD
-   Value: yourpassword
-   ```
-
-**Note:** Base64 encoding recommended for .ulf file:
-```bash
-cat Unity_lic.ulf | base64 > unity_license.txt
-# Then paste base64 content as UNITY_LICENSE secret
+**Add these 3 secrets to GitHub:**
 ```
+Settings → Secrets → Actions → New repository secret
+
+Name: UNITY_EMAIL
+Value: your@email.com
+
+Name: UNITY_PASSWORD
+Value: yourpassword
+
+Name: UNITY_LICENSE
+Value: <paste entire .ulf file contents>
+```
+
+📖 **Detailed guide:** [GameCI Activation Documentation](https://game.ci/docs/github/activation/)
 
 </details>
 
@@ -110,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           lfs: true
 
@@ -139,46 +138,53 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
-
     steps:
-      # Cache Library folder for 50%+ faster builds
-      - uses: actions/cache@v3
-        with:
-          path: Library
-          key: Library-${{ matrix.targetPlatform }}-${{ github.ref }}
-          restore-keys: |
-            Library-${{ matrix.targetPlatform }}-
-            Library-
+      # Free up runner disk space
+      - name: Free up runner disk space
+        run: |
+          df -h
+          sudo docker image prune --all --force
+          sudo docker builder prune --all --force
+          sudo rm -rf /opt/hostedtoolcache/*
+          sudo apt clean
+          df -h
 
       # Checkout repository
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           lfs: true
+          fetch-depth: 0  # Full git history for commit tracking
 
-      # Activate Unity license
-      - uses: game-ci/unity-activate@v2
-        with:
-          unity-email: ${{ secrets.UNITY_EMAIL }}
-          unity-password: ${{ secrets.UNITY_PASSWORD }}
-          # For Pro/Enterprise with serial:
-          # unity-serial: ${{ secrets.UNITY_SERIAL }}
+      # Build with Unity (license activation happens automatically)
+      - name: Build Project
+        uses: game-ci/unity-builder@v4
+        env:
+          BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
 
-      # Build project
-      - uses: game-ci/unity-builder@v4
+          # Unity Pro/Plus (Paid) - Comment out above, uncomment below
+          # UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          # UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          # UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         with:
+          customParameters: "-development -BUILD_METRICS_API_KEY ${{ secrets.BUILD_METRICS_API_KEY }}"
           targetPlatform: Android
-          unityVersion: 'auto'
+          unityVersion: auto
+          buildName: MyGame
 
       # Upload build artifacts
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: Build-Android
           path: build/Android
 ```
 
-**Key point:** The `BUILD_METRICS_API_KEY` env var at the job level makes the plugin auto-upload.
+**Key points:**
+- `customParameters` passes Build Metrics API key to Unity (env vars don't reach Unity in Docker)
+- Disk cleanup prevents "No space left on device" errors
+- GameCI v4 handles license activation automatically
 
 ---
 
@@ -207,32 +213,34 @@ jobs:
           - WebGL
           - StandaloneWindows64
 
-    env:
-      BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
-
     steps:
-      - uses: actions/cache@v3
-        with:
-          path: Library
-          key: Library-${{ matrix.targetPlatform }}
-          restore-keys: Library-
+      - name: Free up runner disk space
+        run: |
+          df -h
+          sudo docker image prune --all --force
+          sudo docker builder prune --all --force
+          sudo rm -rf /opt/hostedtoolcache/*
+          sudo apt clean
+          df -h
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           lfs: true
           fetch-depth: 0  # For git commit tracking
 
-      - uses: game-ci/unity-activate@v2
-        with:
-          unity-email: ${{ secrets.UNITY_EMAIL }}
-          unity-password: ${{ secrets.UNITY_PASSWORD }}
-
       - uses: game-ci/unity-builder@v4
+        env:
+          BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
+          customParameters: "-development -BUILD_METRICS_API_KEY ${{ secrets.BUILD_METRICS_API_KEY }}"
           targetPlatform: ${{ matrix.targetPlatform }}
           buildName: MyGame-${{ matrix.targetPlatform }}
+          unityVersion: auto
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: Build-${{ matrix.targetPlatform }}
           path: build/${{ matrix.targetPlatform }}
@@ -274,12 +282,15 @@ If using a custom C# build method:
 
 ```yaml
 - uses: game-ci/unity-builder@v4
+  env:
+    BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+    UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+    UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+    UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
   with:
     targetPlatform: Android
     buildScript: Assets/Editor/BuildScripts/CustomBuild.cs
-    customParameters: -profile Release -enableAddressables
-  env:
-    BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+    customParameters: -profile Release -enableAddressables -BUILD_METRICS_API_KEY ${{ secrets.BUILD_METRICS_API_KEY }}
 ```
 
 ### Disable Auto-Upload
@@ -362,9 +373,9 @@ env:
 
 ### Builds Slow / Timing Out
 
-**Solution:** Enable caching (shown in examples above)
+**Solution:** Ensure disk cleanup is enabled (shown in examples above)
 
-**Expected speedup:** 50-70% faster builds after first run
+**Why:** GitHub runners have limited disk space (~14GB). GameCI Docker images are large, so disk cleanup prevents "No space left on device" errors.
 
 ---
 
@@ -372,34 +383,38 @@ env:
 
 ### ✅ DO
 
-- Cache `Library` folder (massive speedup)
+- Free up disk space before building (prevents errors)
 - Use `fetch-depth: 0` for git tracking
 - Use matrix builds for multiple platforms
 - Enable LFS if using large assets
 - Store all secrets in GitHub Secrets
+- Pass Build Metrics API key via `customParameters`
 
 ### ❌ DON'T
 
 - Hardcode API keys in workflow
-- Skip caching (very slow)
-- Use `ubuntu-latest` for macOS IL2CPP builds
+- Use Library caching with GameCI (causes disk space issues)
 - Commit Unity license files
+- Forget to add UNITY_LICENSE env var
 
 ---
 
 ## Performance Tips
 
-### 1. Enable Library Caching
+### 1. Free Up Disk Space (Critical)
 
 ```yaml
-- uses: actions/cache@v3
-  with:
-    path: Library
-    key: Library-${{ matrix.targetPlatform }}
-    restore-keys: Library-
+- name: Free up runner disk space
+  run: |
+    df -h
+    sudo docker image prune --all --force
+    sudo docker builder prune --all --force
+    sudo rm -rf /opt/hostedtoolcache/*
+    sudo apt clean
+    df -h
 ```
 
-**Speedup:** 50-70%
+**Why:** Prevents "No space left on device" errors with GameCI Docker images
 
 ### 2. Use Auto Unity Version
 

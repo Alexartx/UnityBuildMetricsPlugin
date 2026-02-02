@@ -49,7 +49,7 @@ jobs:
 
     steps:
       # Your existing build steps work unchanged
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build
         run: |
           /Applications/Unity/Hub/Editor/6000.0.52f1/Unity.app/Contents/MacOS/Unity \
@@ -94,7 +94,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           lfs: true
           fetch-depth: 0  # For git commit tracking
@@ -154,7 +154,7 @@ jobs:
       BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           lfs: true
 
@@ -441,7 +441,7 @@ Add `-logFile unity.log` to Unity command, then:
 
 **Solution:**
 ```yaml
-- uses: actions/checkout@v3
+- uses: actions/checkout@v4
   with:
     fetch-depth: 0  # Full git history
 ```
@@ -520,7 +520,7 @@ jobs:
       BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           lfs: true
           fetch-depth: 0
@@ -541,7 +541,7 @@ jobs:
       BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           lfs: true
           fetch-depth: 0

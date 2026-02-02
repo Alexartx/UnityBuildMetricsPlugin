@@ -1,6 +1,6 @@
 # CI/CD Integration Overview
 
-Build Metrics integrates seamlessly with all major CI/CD platforms through a simple environment variable.
+Build Metrics integrates with GitHub Actions and other CI/CD platforms through command line arguments or environment variables.
 
 ## How It Works
 
@@ -42,26 +42,28 @@ View results in dashboard
 
 ## Supported Platforms
 
-### Cloud CI/CD
+### ✅ Verified & Documented
 
-- ✅ [GitHub Actions](github-actions.md) - Hosted & self-hosted runners
-- ✅ [GitLab CI](gitlab-ci.md) - GitLab.com & self-hosted
-- ✅ [CircleCI](https://moonlightember.com/products/build-metrics/docs/ci-cd/circleci)
-- ✅ [Jenkins](jenkins.md) - Any version
-- ✅ [Azure Pipelines](https://moonlightember.com/products/build-metrics/docs/ci-cd/azure-pipelines)
-- ✅ [TeamCity](https://moonlightember.com/products/build-metrics/docs/ci-cd/teamcity)
-- ✅ [Bitbucket Pipelines](https://moonlightember.com/products/build-metrics/docs/ci-cd/bitbucket)
+- **[GitHub Actions](github-actions.md)** - GameCI with hosted runners
+- **[Self-Hosted GitHub Actions](github-actions-self-hosted.md)** - Your own build machines
 
-### Unity Platforms
+### 🤝 Other CI/CD Systems
 
-- ✅ [Unity Cloud Build](unity-cloud-build.md)
-- ✅ Unity Build Automation (DevOps)
+Build Metrics should work with any CI/CD platform that supports:
+- Command line arguments (GameCI-style): `-BUILD_METRICS_API_KEY your_key`
+- OR environment variables: `BUILD_METRICS_API_KEY=your_key`
 
-### Custom
+**Platforms that should work** (untested):
+- GitLab CI
+- Jenkins
+- CircleCI
+- Azure Pipelines
+- TeamCity
+- Bitbucket Pipelines
+- Unity Cloud Build
+- Custom build servers
 
-- ✅ Any platform that can set environment variables
-- ✅ Local build scripts
-- ✅ Custom build servers
+**Need help?** Contact us: support@moonlightember.com
 
 ---
 
@@ -98,9 +100,6 @@ env:
 
 **Examples:**
 - [GitHub Actions (Self-Hosted)](github-actions-self-hosted.md)
-- [GitLab CI](gitlab-ci.md)
-- [Jenkins](jenkins.md)
-- [Unity Cloud Build](unity-cloud-build.md)
 
 ---
 
@@ -119,58 +118,129 @@ BuildMetricsUploader.UploadBuildReport(report);
 
 ---
 
-## Choose Your Platform
+## Choose Your Setup
 
-### GitHub Actions
+### GitHub Actions (Recommended)
 
-**Scenario 1: Using GameCI**
+**Option 1: GameCI (Hosted Runners)** ✅ Verified
 → [GitHub Actions with GameCI](github-actions.md)
 
-**Scenario 2: Self-hosted runners + direct Unity CLI**
+**Option 2: Self-Hosted Runners** ⚠️ Untested
 → [GitHub Actions Self-Hosted](github-actions-self-hosted.md)
 
-**Scenario 3: Fresh setup**
-→ [GitHub Actions Quick Start](github-actions.md)
+---
+
+### Other CI/CD Platforms
+
+**Already have a CI/CD workflow?** Just add these lines to enable Build Metrics:
+
+**⚠️ First: Add Your API Key as a Secret**
+
+Before using these examples, add `BUILD_METRICS_API_KEY` to your CI platform's secrets/variables:
+- **GitHub:** Settings → Secrets and variables → Actions
+- **GitLab:** Settings → CI/CD → Variables
+- **Jenkins:** Credentials → Add Credentials
+- **CircleCI:** Project Settings → Environment Variables
 
 ---
 
-### GitLab CI
+#### GitLab CI
 
-**Scenario 1: GitLab.com (cloud)**
-→ [GitLab CI Guide](gitlab-ci.md)
+```yaml
+# Add to your existing .gitlab-ci.yml
 
-**Scenario 2: Self-hosted GitLab**
-→ [GitLab CI Guide](gitlab-ci.md) (same setup)
+variables:
+  BUILD_METRICS_API_KEY: $BUILD_METRICS_API_KEY  # ← Add this
 
----
+build:
+  script:
+    - unity-editor \
+        -batchmode \
+        -buildTarget Android \
+        -BUILD_METRICS_API_KEY $BUILD_METRICS_API_KEY  # ← Add this
+```
 
-### Jenkins
+#### Jenkins
 
-**Scenario 1: Freestyle project**
-→ [Jenkins Freestyle](jenkins.md#freestyle)
+```groovy
+// Add to your existing Jenkinsfile
 
-**Scenario 2: Pipeline (Jenkinsfile)**
-→ [Jenkins Pipeline](jenkins.md#pipeline)
+environment {
+  BUILD_METRICS_API_KEY = credentials('build-metrics-api-key')  // ← Add this
+}
 
----
+stage('Build') {
+  sh """
+    unity-editor -batchmode \
+      -buildTarget Android \
+      -BUILD_METRICS_API_KEY ${BUILD_METRICS_API_KEY}  // ← Add this
+  """
+}
+```
 
-### Unity Cloud Build
+#### CircleCI
 
-**Scenario: Using Unity's hosted CI**
-→ [Unity Cloud Build Guide](unity-cloud-build.md)
+```yaml
+# Add to your existing .circleci/config.yml
 
----
+version: 2.1
 
-### Other Platforms
+jobs:
+  build:
+    environment:
+      BUILD_METRICS_API_KEY: ${BUILD_METRICS_API_KEY}  # ← Add this
+    steps:
+      - run: |
+          unity-editor -batchmode \
+            -buildTarget Android \
+            -BUILD_METRICS_API_KEY $BUILD_METRICS_API_KEY  # ← Add this
+```
 
-**CircleCI, Azure Pipelines, TeamCity, etc.**
+#### Azure Pipelines
 
-All follow the same pattern:
-1. Add `BUILD_METRICS_API_KEY` to secrets/variables
-2. Ensure it's available during Unity build
-3. Build as usual
+```yaml
+# Add to your existing azure-pipelines.yml
 
-Full guides available at: [Website Docs](https://moonlightember.com/products/build-metrics/docs/ci-cd-integration)
+variables:
+  BUILD_METRICS_API_KEY: $(BUILD_METRICS_API_KEY)  # ← Add this
+
+steps:
+  - script: |
+      unity-editor -batchmode \
+        -buildTarget Android \
+        -BUILD_METRICS_API_KEY $(BUILD_METRICS_API_KEY)  # ← Add this
+```
+
+#### Unity Cloud Build
+
+```
+# Add to Build Target settings (Pre-Export Method or Environment Variables)
+
+Environment Variable:
+  BUILD_METRICS_API_KEY = your_api_key_here  # ← Add this
+
+# Metrics upload automatically after build completes
+```
+
+#### Custom Build Scripts
+
+```bash
+# Add to your existing build script
+
+export BUILD_METRICS_API_KEY="your_api_key_here"  # ← Add this
+
+unity-editor -batchmode \
+  -buildTarget Android \
+  -BUILD_METRICS_API_KEY $BUILD_METRICS_API_KEY  # ← Add this
+```
+
+**Key points:**
+- ✅ Works with **any** CI/CD platform
+- ✅ Add 2 lines to your existing workflow
+- ✅ No code changes in Unity required
+- ✅ Metrics upload automatically
+
+**Need setup help?** Contact: support@moonlightember.com
 
 ---
 
@@ -313,7 +383,4 @@ Need help? Contact support@moonlightember.com
 
 - [GitHub Actions Guide](github-actions.md)
 - [GitHub Actions (Self-Hosted)](github-actions-self-hosted.md)
-- [GitLab CI Guide](gitlab-ci.md)
-- [Jenkins Guide](jenkins.md)
-- [Unity Cloud Build Guide](unity-cloud-build.md)
 - [Configuration Guide](../configuration.md)
