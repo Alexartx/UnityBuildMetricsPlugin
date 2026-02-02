@@ -36,7 +36,6 @@ namespace BuildMetrics.Editor
             };
         }
 
-        [MenuItem("Tools/Build Metrics/Setup Wizard")]
         public static void ShowWizard()
         {
             var window = GetWindow<BuildMetricsSetupWizard>(true, "Build Metrics Setup", true);

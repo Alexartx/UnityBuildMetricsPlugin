@@ -33,23 +33,33 @@ namespace BuildMetrics.Editor
         }
 
         /// <summary>
-        /// API Key with environment variable override support.
-        /// Priority: Environment Variable > EditorPrefs (project-specific)
-        /// This allows teams to share a key via environment variable while keeping per-developer keys secure.
+        /// API Key with multiple sources support.
+        /// Priority: Command Line Arguments > Environment Variable > EditorPrefs (project-specific)
+        /// This allows flexible configuration across different CI/CD systems:
+        /// - Command line args: GameCI and other CI systems that support custom parameters
+        /// - Environment variables: GitLab CI, Jenkins, and custom CI setups
+        /// - EditorPrefs: Local development with Setup Wizard
         /// Each Unity project stores its own API key separately.
         /// </summary>
         public static string ApiKey
         {
             get
             {
-                // Check environment variable first (for CI/CD and team sharing)
+                // Priority 1: Check command line arguments (for GameCI and CI/CD systems)
+                var cmdLineKey = GetCommandLineArgValue("-BUILD_METRICS_API_KEY");
+                if (!string.IsNullOrEmpty(cmdLineKey))
+                {
+                    return cmdLineKey;
+                }
+
+                // Priority 2: Check environment variable (for GitLab CI, Jenkins, etc.)
                 var envKey = Environment.GetEnvironmentVariable(ApiKeyEnvVar);
                 if (!string.IsNullOrEmpty(envKey))
                 {
                     return envKey;
                 }
 
-                // Fall back to project-specific EditorPrefs (per-project, per-developer, secure)
+                // Priority 3: Fall back to project-specific EditorPrefs (local development)
                 var projectKey = GetProjectSpecificKey(ApiKeyPrefBase);
                 return EditorPrefs.GetString(projectKey, string.Empty);
             }
@@ -91,6 +101,33 @@ namespace BuildMetrics.Editor
         public static bool IsUsingEnvironmentApiKey()
         {
             return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ApiKeyEnvVar));
+        }
+
+        /// <summary>
+        /// Check if API key is coming from command line arguments
+        /// </summary>
+        public static bool IsUsingCommandLineApiKey()
+        {
+            return !string.IsNullOrEmpty(GetCommandLineArgValue("-BUILD_METRICS_API_KEY"));
+        }
+
+        /// <summary>
+        /// Get value of a command line argument by key.
+        /// Used to read API key from CI/CD systems like GameCI that pass values via customParameters.
+        /// </summary>
+        /// <param name="key">The argument key to look for (e.g., "-BUILD_METRICS_API_KEY")</param>
+        /// <returns>The value following the key, or null if not found</returns>
+        private static string GetCommandLineArgValue(string key)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == key && i + 1 < args.Length)
+                {
+                    return args[i + 1];
+                }
+            }
+            return null;
         }
     }
 }

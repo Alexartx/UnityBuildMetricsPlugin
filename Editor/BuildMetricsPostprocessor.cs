@@ -33,6 +33,9 @@ namespace BuildMetrics.Editor
                 Debug.Log($"{BuildMetricsConstants.LogPrefix} Build completed! Platform: {summary.platform}, " +
                     $"Time: {summary.totalTime.TotalSeconds:F1}s, Size: {summary.totalSize / 1024 / 1024:F2} MB");
 
+                var buildRecord = BuildRecord.FromMetricsReport(reportData);
+                BuildHistoryStorage.AddBuild(buildRecord);
+
                 BuildMetricsUploader.TryUploadPending();
 
                 if (BuildMetricsSettings.AutoUpload && !string.IsNullOrWhiteSpace(BuildMetricsSettings.ApiKey))
