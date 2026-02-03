@@ -31,7 +31,7 @@ Fastest way to install and get automatic updates.
 3. Click "+" → Add package from git URL
 4. Paste this URL:
    ```
-   https://github.com/yourusername/unity-buildmetrics.git
+   https://github.com/Alexartx/UnityBuildMetricsPlugin.git
    ```
 5. Click "Add"
 
@@ -39,7 +39,7 @@ Fastest way to install and get automatic updates.
 
 Download and import manually. Works offline.
 
-1. Download the latest `.unitypackage` from [Releases](https://github.com/yourusername/unity-buildmetrics/releases)
+1. Download the latest `.unitypackage` from [Releases](https://github.com/Alexartx/UnityBuildMetricsPlugin/releases)
 2. In Unity: Assets → Import Package → Custom Package
 3. Select the downloaded file
 4. Click "Import"
@@ -77,26 +77,42 @@ If clipboard detection doesn't work or you prefer manual setup:
 
 ### API Key Options
 
-The plugin supports two ways to configure your API key:
+The plugin supports three ways to configure your API key (priority order):
 
-#### Option 1: EditorPrefs (Per-Developer) ✅ Recommended
+#### Option 1: Command Line Arguments (CI/CD) 🚀 For GameCI
 
-- Each developer configures their own API key
-- Stored locally on their machine (never committed to Git)
-- Most secure option
-- Best for: Individual developers, tracking per-developer metrics
+- Highest priority method
+- Pass API key via Unity command line arguments
+- Best for: GameCI, Docker-based CI/CD systems
 
 **How to configure:**
-1. Tools → Build Metrics → Setup Wizard
-2. Enter your API key
-3. Click "Complete Setup"
+```bash
+Unity -quit -batchmode -projectPath . \
+  -executeMethod YourBuild.Build \
+  -BUILD_METRICS_API_KEY bm_your_api_key_here
+```
+
+**GitHub Actions (GameCI):**
+```yaml
+- uses: game-ci/unity-builder@v4
+  env:
+    BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+    UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+    UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+    UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+  with:
+    customParameters: "-development -BUILD_METRICS_API_KEY ${{ secrets.BUILD_METRICS_API_KEY }}"
+    targetPlatform: Android
+```
+
+See [CI/CD Integration Guide](Documentation~/ci-cd/overview.md) for complete setup instructions.
 
 #### Option 2: Environment Variable (Team/CI)
 
+- Second priority method
 - Shared API key via environment variable `BUILD_METRICS_API_KEY`
-- Environment variable takes priority over EditorPrefs
 - Never store in Git - use shell profile or CI secrets
-- Best for: Teams sharing one key, CI/CD pipelines
+- Best for: Self-hosted runners, local team builds
 
 **How to configure:**
 
@@ -112,21 +128,40 @@ export BUILD_METRICS_API_KEY="bm_your_api_key_here"
 [System.Environment]::SetEnvironmentVariable('BUILD_METRICS_API_KEY', 'bm_your_api_key_here', 'User')
 ```
 
-**CI/CD:**
+**GitHub Actions (Self-Hosted):**
 ```yaml
-# GitHub Actions example
-env:
-  BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+jobs:
+  build:
+    runs-on: [self-hosted, macOS]
+    env:
+      BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
 ```
+
+#### Option 3: EditorPrefs (Per-Developer) ✅ For Local Development
+
+- Lowest priority method (fallback)
+- Each developer configures their own API key
+- Stored locally on their machine (never committed to Git)
+- Best for: Individual developers, local builds
+
+**How to configure:**
+1. Tools → Build Metrics → Setup Wizard
+2. Enter your API key
+3. Click "Complete Setup"
 
 ### Settings
 
 Access settings via: **Tools → Build Metrics → Settings**
 
-- **API Key**: Your unique identifier (or set via environment variable)
+- **API Key**: Your unique identifier (or set via command line/environment variable)
 - **Auto Upload**: Enable/disable automatic upload after builds
 
-When using environment variable, the settings UI shows: "✓ Using API key from environment variable"
+**Priority chain:**
+1. Command line arguments (highest priority) - for CI/CD
+2. Environment variable - for team/runner builds
+3. EditorPrefs (lowest priority) - for local development
+
+When using command line args or environment variable, the settings UI shows the active source.
 
 ## Usage
 
@@ -140,6 +175,108 @@ If you prefer to control when metrics are sent:
 
 1. Disable auto-upload in settings
 2. Use the menu: Tools → Build Metrics → Upload Last Build
+
+## CI/CD Integration
+
+Build Metrics works with any CI/CD system. Just add your API key as a secret and configure it in your workflow.
+
+### GitHub Actions with GameCI (Recommended)
+
+**Complete working example:**
+
+```yaml
+name: Build Unity Project
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Free up runner disk space
+      - name: Free up runner disk space
+        run: |
+          df -h
+          sudo docker image prune --all --force
+          sudo docker builder prune --all --force
+          sudo rm -rf /opt/hostedtoolcache/*
+          sudo apt clean
+          df -h
+
+      # Checkout repository
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0  # Full git history for commit tracking
+
+      # Build with Unity (license activation happens automatically)
+      - name: Build Project
+        uses: game-ci/unity-builder@v4
+        env:
+          BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          customParameters: "-development -BUILD_METRICS_API_KEY ${{ secrets.BUILD_METRICS_API_KEY }}"
+          targetPlatform: Android
+          unityVersion: auto
+          buildName: MyGame
+
+      # Upload build artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Build-Android
+          path: build/Android
+```
+
+**Required GitHub Secrets:**
+1. `BUILD_METRICS_API_KEY` - Get from [dashboard](https://app.buildmetrics.moonlightember.com)
+2. `UNITY_LICENSE` - `.ulf` file contents from [Unity Manual License](https://license.unity3d.com/manual)
+3. `UNITY_EMAIL` - Your Unity account email
+4. `UNITY_PASSWORD` - Your Unity account password
+
+**📖 Complete setup guide:** [CI/CD Integration Documentation](Documentation~/ci-cd/overview.md)
+
+### GitHub Actions with Self-Hosted Runners
+
+For self-hosted macOS/Windows/Linux runners with Unity installed:
+
+```yaml
+jobs:
+  build:
+    runs-on: [self-hosted, macOS, Unity]
+
+    env:
+      BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Build
+        run: |
+          /Applications/Unity/Hub/Editor/6000.0.52f1/Unity.app/Contents/MacOS/Unity \
+            -quit -batchmode -nographics \
+            -projectPath . \
+            -executeMethod YourBuildMethod.Build \
+            -logFile -
+```
+
+### Other CI/CD Platforms
+
+Build Metrics works with any CI/CD system that supports environment variables or command line arguments:
+- ✅ GitLab CI
+- ✅ Jenkins
+- ✅ CircleCI
+- ✅ Azure Pipelines
+- ✅ Unity Cloud Build
+- ✅ Custom build servers
+
+**📖 See full documentation:** [CI/CD Integration Guide](Documentation~/ci-cd/overview.md)
 
 ## What Gets Tracked?
 
