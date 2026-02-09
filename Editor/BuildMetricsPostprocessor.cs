@@ -31,7 +31,7 @@ namespace BuildMetrics.Editor
                 var reportData = BuildReportFactory.Create(report);
                 var reportPath = BuildMetricsStorage.WriteReport(reportData);
                 Debug.Log($"{BuildMetricsConstants.LogPrefix} Build completed! Platform: {summary.platform}, " +
-                    $"Time: {summary.totalTime.TotalSeconds:F1}s, Size: {summary.totalSize / 1024 / 1024:F2} MB");
+                    $"Time: {summary.totalTime.TotalSeconds:F1}s, Size: {reportData.outputSizeBytes / 1024 / 1024:F2} MB");
 
                 var buildRecord = BuildRecord.FromMetricsReport(reportData);
                 BuildHistoryStorage.AddBuild(buildRecord);

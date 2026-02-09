@@ -36,6 +36,21 @@ namespace BuildMetrics.Editor
             var fileBreakdown = FileBreakdownCollector.Collect(report);
             var assetBreakdown = FileBreakdownCollector.CollectAssetBreakdown(report);
 
+            // Prefer parsed build output totals when available for select platforms.
+            if (fileBreakdown != null)
+            {
+                var breakdownTotal = GetFileBreakdownTotalSize(fileBreakdown);
+                if (breakdownTotal > 0)
+                {
+                    if (summary.platform == BuildTarget.Android ||
+                        summary.platform == BuildTarget.WebGL ||
+                        (summary.platform == BuildTarget.iOS && artifactInfo.Type == "xcode"))
+                    {
+                        outputSizeBytes = breakdownTotal;
+                    }
+                }
+            }
+
             // Get platform-specific build number
             var platformBuildNumber = GetPlatformBuildNumber(summary.platform);
 
@@ -77,6 +92,22 @@ namespace BuildMetrics.Editor
                 fileBreakdown = fileBreakdown,
                 assetBreakdown = assetBreakdown
             };
+        }
+
+        private static long GetFileBreakdownTotalSize(FileBreakdown breakdown)
+        {
+            if (breakdown == null)
+            {
+                return 0;
+            }
+
+            return (breakdown.scripts?.size ?? 0)
+                + (breakdown.resources?.size ?? 0)
+                + (breakdown.streamingAssets?.size ?? 0)
+                + (breakdown.plugins?.size ?? 0)
+                + (breakdown.scenes?.size ?? 0)
+                + (breakdown.shaders?.size ?? 0)
+                + (breakdown.other?.size ?? 0);
         }
 
         private static long GetOutputSize(string outputPath, ulong fallbackTotalSize, ArtifactInfo artifactInfo)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
@@ -16,6 +17,7 @@ namespace BuildMetrics.Editor
     {
         /// <summary>
         /// Collect file breakdown from the build report.
+        /// For accurate results, analyzes the actual build output (APK, IPA, etc.) instead of Unity's incomplete APIs.
         /// Returns null if the report doesn't contain file information.
         /// </summary>
         public static FileBreakdown Collect(BuildReport report)
@@ -28,6 +30,7 @@ namespace BuildMetrics.Editor
             try
             {
                 var platform = report.summary.platform;
+                var outputPath = report.summary.outputPath;
 
                 var categories = new Dictionary<string, FileCategoryData>
                 {
@@ -39,6 +42,12 @@ namespace BuildMetrics.Editor
                     ["shaders"] = new FileCategoryData { size = 0, count = 0 },
                     ["other"] = new FileCategoryData { size = 0, count = 0 }
                 };
+
+                // NEW: Try parsing actual build output first (most accurate)
+                if (TryParseBuildOutput(outputPath, platform, categories))
+                {
+                    return BuildFileBreakdownResult(categories, platform, null);
+                }
 
                 // Track "other" subcategories for detailed breakdown
                 var otherSubcategories = new Dictionary<string, FileCategorySubData>
@@ -71,7 +80,7 @@ namespace BuildMetrics.Editor
                     ["other"] = new FileCategorySubData { size = 0, count = 0 }
                 };
 
-                // Try PackedAssets first (works for iOS, Standalone)
+                // FALLBACK: Try PackedAssets API (works for iOS, Standalone but incomplete)
                 var packedAssets = report.packedAssets;
                 if (packedAssets != null && packedAssets.Length > 0)
                 {
@@ -96,7 +105,23 @@ namespace BuildMetrics.Editor
 #endif
                 }
 
-                // Add detailed breakdown to "other" category
+                return BuildFileBreakdownResult(categories, platform, otherSubcategories);
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to collect file breakdown: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static FileBreakdown BuildFileBreakdownResult(
+            Dictionary<string, FileCategoryData> categories,
+            UnityEditor.BuildTarget platform,
+            Dictionary<string, FileCategorySubData> otherSubcategories = null)
+        {
+            // Add detailed breakdown to "other" category if provided
+            if (otherSubcategories != null)
+            {
                 categories["other"].breakdown = new OtherBreakdown
                 {
                     spriteAtlases = otherSubcategories["spriteAtlases"],
@@ -127,23 +152,411 @@ namespace BuildMetrics.Editor
                     other = otherSubcategories["other"]
                 };
 
-                var breakdown = new FileBreakdown
-                {
-                    scripts = categories["scripts"],
-                    resources = categories["resources"],
-                    streamingAssets = categories["streamingAssets"],
-                    plugins = categories["plugins"],
-                    scenes = categories["scenes"],
-                    shaders = categories["shaders"],
-                    other = categories["other"]
-                };
+            }
 
-                return breakdown;
+            var breakdown = new FileBreakdown
+            {
+                scripts = categories["scripts"],
+                resources = categories["resources"],
+                streamingAssets = categories["streamingAssets"],
+                plugins = categories["plugins"],
+                scenes = categories["scenes"],
+                shaders = categories["shaders"],
+                other = categories["other"]
+            };
+
+            return breakdown;
+        }
+
+        /// <summary>
+        /// Parse actual build output for accurate file breakdown.
+        /// Unzips and analyzes APK, IPA, or directory contents.
+        /// </summary>
+        private static bool TryParseBuildOutput(
+            string outputPath,
+            UnityEditor.BuildTarget platform,
+            Dictionary<string, FileCategoryData> categories)
+        {
+            if (string.IsNullOrEmpty(outputPath) || !File.Exists(outputPath) && !Directory.Exists(outputPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                switch (platform)
+                {
+                    case UnityEditor.BuildTarget.Android:
+                        return ParseAndroidAPK(outputPath, categories);
+
+                    case UnityEditor.BuildTarget.iOS:
+                        return ParseIOSBuild(outputPath, categories);
+
+                    case UnityEditor.BuildTarget.WebGL:
+                        return ParseWebGLBuild(outputPath, categories);
+
+                    case UnityEditor.BuildTarget.StandaloneWindows:
+                    case UnityEditor.BuildTarget.StandaloneWindows64:
+                    case UnityEditor.BuildTarget.StandaloneOSX:
+                    case UnityEditor.BuildTarget.StandaloneLinux64:
+                        return ParseStandaloneBuild(outputPath, categories);
+
+                    default:
+                        return false;
+                }
             }
             catch (Exception ex)
             {
-                UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to collect file breakdown: {ex.Message}");
-                return null;
+                Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to parse build output: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Parse Android APK file contents for accurate breakdown.
+        /// APK is a ZIP archive - we can extract and analyze all files.
+        /// </summary>
+        private static bool ParseAndroidAPK(string apkPath, Dictionary<string, FileCategoryData> categories)
+        {
+            if (!apkPath.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+            {
+                // Might be AAB or directory
+                if (Directory.Exists(apkPath))
+                {
+                    return ParseDirectoryContents(apkPath, categories, CategorizeAndroidFile);
+                }
+                return false;
+            }
+
+            try
+            {
+                using (var archive = System.IO.Compression.ZipFile.OpenRead(apkPath))
+                {
+                    foreach (var entry in archive.Entries)
+                    {
+                        if (entry.FullName.EndsWith("/")) continue; // Skip directories
+
+                        var category = CategorizeAndroidFile(entry.FullName);
+                        var data = categories[category];
+                        // Use CompressedLength for accurate size (uncompressed would be 10-20x larger)
+                        data.size += entry.CompressedLength;
+                        data.count++;
+                        categories[category] = data;
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to parse APK: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Categorize files inside Android APK.
+        /// </summary>
+        private static string CategorizeAndroidFile(string path)
+        {
+            var lower = path.ToLowerInvariant();
+
+            // Native libraries (.so files) - usually 20-30 MB
+            if (lower.StartsWith("lib/") || lower.Contains("/lib/"))
+            {
+                return "plugins"; // Native plugins
+            }
+
+            // DEX files (compiled Java/Kotlin code) - usually 5-10 MB
+            if (lower.StartsWith("classes") && lower.EndsWith(".dex"))
+            {
+                return "scripts"; // Compiled scripts
+            }
+
+            // Unity data files (scenes, resources, assets)
+            if (lower.StartsWith("assets/bin/data/"))
+            {
+                var fileName = System.IO.Path.GetFileName(lower);
+
+                // Resources: resources.assets, resources.resource, resources.resS, resources-*.split*
+                if (fileName.StartsWith("resources"))
+                {
+                    return "resources";
+                }
+
+                // Scenes: sharedassets*.*, level*.*, maindata
+                if (fileName.StartsWith("sharedassets") || fileName.StartsWith("level") || fileName == "maindata")
+                {
+                    return "scenes";
+                }
+
+                // Shaders: resources/unity_builtin_extra or shader-related
+                if (lower.Contains("shader") || lower.Contains("unity_builtin_extra"))
+                {
+                    return "shaders";
+                }
+
+                // Everything else in bin/Data (globalgamemanagers, etc.)
+                return "other"; // Unity runtime data
+            }
+
+            // Streaming assets (user-added files, not processed by Unity)
+            if (lower.StartsWith("assets/") && !lower.StartsWith("assets/bin/"))
+            {
+                return "streamingAssets";
+            }
+
+            // Android resources (icons, layouts, etc.)
+            if (lower.StartsWith("res/") || lower == "resources.arsc")
+            {
+                return "other"; // Android system resources
+            }
+
+            // Shaders
+            if (lower.Contains("shader"))
+            {
+                return "shaders";
+            }
+
+            // Everything else (manifest, signatures, etc.)
+            return "other";
+        }
+
+        /// <summary>
+        /// Parse iOS build (either .app directory or .ipa file).
+        /// </summary>
+        private static bool ParseIOSBuild(string outputPath, Dictionary<string, FileCategoryData> categories)
+        {
+            // iOS builds are directories (.app) or IPA files
+            if (outputPath.EndsWith(".ipa", StringComparison.OrdinalIgnoreCase))
+            {
+                // IPA is a ZIP archive
+                try
+                {
+                    using (var archive = System.IO.Compression.ZipFile.OpenRead(outputPath))
+                    {
+                        foreach (var entry in archive.Entries)
+                        {
+                            if (entry.FullName.EndsWith("/")) continue;
+
+                            var category = CategorizeIOSFile(entry.FullName);
+                            var data = categories[category];
+                            // Use CompressedLength for accurate size
+                            data.size += entry.CompressedLength;
+                            data.count++;
+                            categories[category] = data;
+                        }
+                    }
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to parse IPA: {ex.Message}");
+                    return false;
+                }
+            }
+            else if (Directory.Exists(outputPath))
+            {
+                // .app directory or Xcode project
+                return ParseDirectoryContents(outputPath, categories, CategorizeIOSFile);
+            }
+
+            return false;
+        }
+
+        private static string CategorizeIOSFile(string path)
+        {
+            var lower = path.ToLowerInvariant();
+
+            // Native frameworks and libraries
+            if (lower.Contains("/frameworks/") || lower.EndsWith(".dylib") || lower.EndsWith(".framework"))
+            {
+                return "plugins";
+            }
+
+            // Unity data files
+            if (lower.Contains("/data/") && (lower.Contains("sharedassets") || lower.Contains("level")))
+            {
+                return "scenes";
+            }
+
+            if (lower.Contains("/data/") && (lower.Contains("resources") || lower.EndsWith(".resource")))
+            {
+                return "resources";
+            }
+
+            // Streaming assets
+            if (lower.Contains("/data/raw/"))
+            {
+                return "streamingAssets";
+            }
+
+            // Shaders
+            if (lower.Contains("shader"))
+            {
+                return "shaders";
+            }
+
+            // Asset catalogs and app resources
+            if (lower.Contains("assets.car") || lower.EndsWith(".nib") || lower.EndsWith(".storyboardc"))
+            {
+                return "other";
+            }
+
+            return "other";
+        }
+
+        /// <summary>
+        /// Parse WebGL build directory.
+        /// </summary>
+        private static bool ParseWebGLBuild(string outputPath, Dictionary<string, FileCategoryData> categories)
+        {
+            if (!Directory.Exists(outputPath))
+            {
+                return false;
+            }
+
+            return ParseDirectoryContents(outputPath, categories, CategorizeWebGLFile);
+        }
+
+        private static string CategorizeWebGLFile(string path)
+        {
+            var lower = path.ToLowerInvariant();
+
+            // WASM binary (compiled code)
+            if (lower.EndsWith(".wasm"))
+            {
+                return "scripts";
+            }
+
+            // JavaScript framework
+            if (lower.EndsWith(".js"))
+            {
+                return "scripts";
+            }
+
+            // Data file (contains assets)
+            if (lower.EndsWith(".data"))
+            {
+                return "other"; // Mixed content
+            }
+
+            // Symbols/debugging
+            if (lower.EndsWith(".symbols.json"))
+            {
+                return "other";
+            }
+
+            return "other";
+        }
+
+        /// <summary>
+        /// Parse standalone build (Windows/Mac/Linux).
+        /// </summary>
+        private static bool ParseStandaloneBuild(string outputPath, Dictionary<string, FileCategoryData> categories)
+        {
+            string dataPath = null;
+
+            if (File.Exists(outputPath))
+            {
+                // Executable file - find associated Data folder
+                var dir = Path.GetDirectoryName(outputPath);
+                var exeName = Path.GetFileNameWithoutExtension(outputPath);
+                dataPath = Path.Combine(dir, exeName + "_Data");
+            }
+            else if (Directory.Exists(outputPath))
+            {
+                // Directory (Mac .app bundle)
+                if (outputPath.EndsWith(".app"))
+                {
+                    dataPath = Path.Combine(outputPath, "Contents", "Data");
+                }
+                else
+                {
+                    dataPath = outputPath;
+                }
+            }
+
+            if (string.IsNullOrEmpty(dataPath) || !Directory.Exists(dataPath))
+            {
+                return false;
+            }
+
+            return ParseDirectoryContents(dataPath, categories, CategorizeStandaloneFile);
+        }
+
+        private static string CategorizeStandaloneFile(string path)
+        {
+            var lower = path.ToLowerInvariant();
+
+            // Plugins/DLLs
+            if (lower.Contains("/plugins/") || lower.EndsWith(".dll") || lower.EndsWith(".so") || lower.EndsWith(".bundle"))
+            {
+                return "plugins";
+            }
+
+            // Managed assemblies
+            if (lower.Contains("/managed/") && lower.EndsWith(".dll"))
+            {
+                return "scripts";
+            }
+
+            // Unity data files
+            if (lower.Contains("sharedassets") || lower.Contains("level"))
+            {
+                return "scenes";
+            }
+
+            if (lower.Contains("resources") || lower.EndsWith(".resource") || lower.EndsWith(".ress"))
+            {
+                return "resources";
+            }
+
+            // Streaming assets
+            if (lower.Contains("/streamingassets/"))
+            {
+                return "streamingAssets";
+            }
+
+            // Shaders
+            if (lower.Contains("shader"))
+            {
+                return "shaders";
+            }
+
+            return "other";
+        }
+
+        /// <summary>
+        /// Generic directory parsing helper.
+        /// </summary>
+        private static bool ParseDirectoryContents(
+            string dirPath,
+            Dictionary<string, FileCategoryData> categories,
+            Func<string, string> categorizer)
+        {
+            try
+            {
+                var files = Directory.GetFiles(dirPath, "*", SearchOption.AllDirectories);
+
+                foreach (var filePath in files)
+                {
+                    var fileInfo = new FileInfo(filePath);
+                    var relativePath = filePath.Substring(dirPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+                    var category = categorizer(relativePath);
+                    var data = categories[category];
+                    data.size += fileInfo.Length;
+                    data.count++;
+                    categories[category] = data;
+                }
+
+                return files.Length > 0;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to parse directory: {ex.Message}");
+                return false;
             }
         }
 

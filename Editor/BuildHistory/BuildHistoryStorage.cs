@@ -1,4 +1,6 @@
 using System;
+using System.Security.Cryptography;
+using System.Text;
 using UnityEditor;
 using UnityEngine;
 
@@ -6,8 +8,30 @@ namespace BuildMetrics.Editor
 {
     public static class BuildHistoryStorage
     {
-        private const string HistoryKey = "BuildMetrics_History_v1";
+        private const string HistoryKeyBase = "BuildMetrics_History_v1";
         private static BuildHistoryData cachedHistory;
+
+        /// <summary>
+        /// Get project-specific EditorPrefs key to isolate build history per-project.
+        /// Uses hash of project path to create unique key for each Unity project.
+        /// </summary>
+        private static string GetProjectSpecificKey(string baseKey)
+        {
+            var projectPath = UnityEngine.Application.dataPath; // Ends with "/Assets"
+
+            // Create short hash of project path (8 characters is enough for uniqueness)
+            using (var md5 = MD5.Create())
+            {
+                var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(projectPath));
+                var hashString = BitConverter.ToString(hash).Replace("-", "").Substring(0, 8);
+                return $"{baseKey}.{hashString}";
+            }
+        }
+
+        /// <summary>
+        /// Project-specific history key. Each Unity project stores its own build history separately.
+        /// </summary>
+        private static string HistoryKey => GetProjectSpecificKey(HistoryKeyBase);
 
         public static BuildHistoryData Load()
         {

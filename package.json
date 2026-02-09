@@ -1,6 +1,6 @@
 {
   "name": "com.buildmetrics.unity-plugin",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "displayName": "Build Metrics",
   "description": "Track Unity build performance and regressions. Automatically collect build metrics and detect size/time regressions, alerts, build information",
   "unity": "2020.3",

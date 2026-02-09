@@ -9,7 +9,7 @@ namespace BuildMetrics.Editor
     {
         public List<BuildRecord> builds = new List<BuildRecord>();
 
-        private const int MaxBuilds = 10;
+        public const int MaxBuilds = 20;
 
         public void AddBuild(BuildRecord record)
         {
