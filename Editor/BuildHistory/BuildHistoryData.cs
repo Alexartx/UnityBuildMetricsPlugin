@@ -9,7 +9,8 @@ namespace BuildMetrics.Editor
     {
         public List<BuildRecord> builds = new List<BuildRecord>();
 
-        public const int MaxBuilds = 20;
+        public const int MaxBuilds    = 20;
+        public const int ChartMaxPoints = 20; // how many recent builds the trend chart shows
 
         public void AddBuild(BuildRecord record)
         {

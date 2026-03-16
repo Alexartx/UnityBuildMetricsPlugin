@@ -5,6 +5,23 @@ All notable changes to Build Metrics for Unity will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-03-16
+
+### Added
+- Status bar in Build History window showing live upload state (uploading / success / failed) with quick-action links
+- Cloud CTA banner at 20 local builds — non-blocking, purely additive upsell
+- Server-side API key validation in Setup Wizard (GET /api/validate) with human-readable error messages
+
+### Fixed
+- Trend charts now show the most recent N builds instead of the oldest N builds
+- Git info collector no longer freezes the Editor on slow or missing git installs (5 s timeout + kill)
+- Build history migrated from EditorPrefs to `Library/BuildMetrics/history.json` — removes 8 KB size limit and makes history project-specific
+- Silent upload failures now surface a descriptive error in the status bar
+
+### Changed
+- Setup Wizard key validation saves the key immediately on server confirmation
+- Cloud CTA copy updated to focus on feature value rather than local storage limits
+
 ## [1.0.3] - 2026-02-05
 
 ### Added

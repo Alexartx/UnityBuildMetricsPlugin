@@ -1,68 +1,46 @@
 using System;
-using System.Security.Cryptography;
+using System.IO;
 using System.Text;
-using UnityEditor;
 using UnityEngine;
 
 namespace BuildMetrics.Editor
 {
+    /// <summary>
+    /// Persists build history to Library/BuildMetrics/history.json
+    /// (project-specific, gitignored by Unity, no EditorPrefs size limit).
+    /// </summary>
     public static class BuildHistoryStorage
     {
-        private const string HistoryKeyBase = "BuildMetrics_History_v1";
+        // ── File storage ─────────────────────────────────────────────────────
+        private const string HistoryFileName = "history.json";
+        private const string StorageFolder   = "BuildMetrics";
+
         private static BuildHistoryData cachedHistory;
 
-        /// <summary>
-        /// Get project-specific EditorPrefs key to isolate build history per-project.
-        /// Uses hash of project path to create unique key for each Unity project.
-        /// </summary>
-        private static string GetProjectSpecificKey(string baseKey)
+        /// <summary>Absolute path to Library/BuildMetrics/history.json</summary>
+        private static string HistoryFilePath
         {
-            var projectPath = UnityEngine.Application.dataPath; // Ends with "/Assets"
-
-            // Create short hash of project path (8 characters is enough for uniqueness)
-            using (var md5 = MD5.Create())
+            get
             {
-                var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(projectPath));
-                var hashString = BitConverter.ToString(hash).Replace("-", "").Substring(0, 8);
-                return $"{baseKey}.{hashString}";
+                // Application.dataPath ends in "/Assets"; Library is one level up
+                var libraryDir = Path.Combine(
+                    Path.GetDirectoryName(Application.dataPath) ?? Application.dataPath,
+                    "Library",
+                    StorageFolder);
+                Directory.CreateDirectory(libraryDir);
+                return Path.Combine(libraryDir, HistoryFileName);
             }
         }
 
-        /// <summary>
-        /// Project-specific history key. Each Unity project stores its own build history separately.
-        /// </summary>
-        private static string HistoryKey => GetProjectSpecificKey(HistoryKeyBase);
+        // ── Public API ───────────────────────────────────────────────────────
 
         public static BuildHistoryData Load()
         {
             if (cachedHistory != null)
-            {
                 return cachedHistory;
-            }
 
-            try
-            {
-                var json = EditorPrefs.GetString(HistoryKey, string.Empty);
-                if (string.IsNullOrEmpty(json))
-                {
-                    cachedHistory = new BuildHistoryData();
-                    return cachedHistory;
-                }
-
-                cachedHistory = JsonUtility.FromJson<BuildHistoryData>(json);
-                if (cachedHistory == null || cachedHistory.builds == null)
-                {
-                    cachedHistory = new BuildHistoryData();
-                }
-
-                return cachedHistory;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to load build history: {ex.Message}");
-                cachedHistory = new BuildHistoryData();
-                return cachedHistory;
-            }
+            cachedHistory = LoadFromFile();
+            return cachedHistory;
         }
 
         public static void Save(BuildHistoryData history)
@@ -70,8 +48,8 @@ namespace BuildMetrics.Editor
             try
             {
                 cachedHistory = history;
-                var json = JsonUtility.ToJson(history, false);
-                EditorPrefs.SetString(HistoryKey, json);
+                var json = JsonUtility.ToJson(history, prettyPrint: false);
+                File.WriteAllText(HistoryFilePath, json, Encoding.UTF8);
             }
             catch (Exception ex)
             {
@@ -96,6 +74,32 @@ namespace BuildMetrics.Editor
         public static void ClearCache()
         {
             cachedHistory = null;
+        }
+
+        // ── Internal ─────────────────────────────────────────────────────────
+
+        private static BuildHistoryData LoadFromFile()
+        {
+            var path = HistoryFilePath;
+
+            // ── Attempt to load from file ────────────────────────────────────
+            if (File.Exists(path))
+            {
+                try
+                {
+                    var json    = File.ReadAllText(path, Encoding.UTF8);
+                    var history = JsonUtility.FromJson<BuildHistoryData>(json);
+                    if (history?.builds != null)
+                        return history;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning(
+                        $"{BuildMetricsConstants.LogPrefix} Could not read history file, starting fresh. ({ex.Message})");
+                }
+            }
+
+            return new BuildHistoryData();
         }
     }
 }

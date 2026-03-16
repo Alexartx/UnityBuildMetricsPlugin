@@ -292,40 +292,29 @@ namespace BuildMetrics.Editor
         {
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                validationMessage = "Please enter an API key";
+                validationMessage     = "Please enter an API key";
                 validationMessageType = MessageType.Warning;
                 return;
             }
 
-            validationMessage = "Validating API key...";
+            validationMessage     = "Checking with server…";
             validationMessageType = MessageType.Info;
             Repaint();
 
-            try
+            BuildMetricsUploader.ValidateApiKeyWithServer(apiKey, (isValid, message) =>
             {
-                var testReport = new BuildMetricsReport
-                {
-                    platform = "Validation",
-                    buildTimeSeconds = 0,
-                    outputSizeBytes = 0,
-                    unityVersion = Application.unityVersion,
-                    timestamp = System.DateTime.UtcNow.ToString("o")
-                };
+                validationMessage     = message;
+                validationMessageType = isValid ? MessageType.Info : MessageType.Error;
 
-                // Note: This is a dry-run validation
-                // In a real implementation, you'd have a validation endpoint
-                validationMessage = "API key format is valid! Settings will be saved when you close this window.";
-                validationMessageType = MessageType.Info;
-            }
-            catch (System.Exception ex)
-            {
-                validationMessage = $"Validation error: {ex.Message}";
-                validationMessageType = MessageType.Error;
-            }
-            finally
-            {
+                if (isValid)
+                {
+                    // Save immediately so the user sees a confirmed green state
+                    BuildMetricsSettings.ApiKey    = apiKey;
+                    BuildMetricsSettings.AutoUpload = autoUpload;
+                }
+
                 Repaint();
-            }
+            });
         }
 
     }

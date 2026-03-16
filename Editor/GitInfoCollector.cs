@@ -101,7 +101,12 @@ namespace BuildMetrics.Editor
                 process.Start();
                 var output = process.StandardOutput.ReadToEnd();
                 var error = process.StandardError.ReadToEnd();
-                process.WaitForExit();
+
+                if (!process.WaitForExit(5000))
+                {
+                    try { process.Kill(); } catch { }
+                    throw new TimeoutException($"Git command timed out after 5s: git {arguments}");
+                }
 
                 if (process.ExitCode != 0 && !string.IsNullOrWhiteSpace(error))
                 {

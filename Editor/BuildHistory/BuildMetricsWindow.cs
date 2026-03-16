@@ -38,9 +38,20 @@ namespace BuildMetrics.Editor
             window.Show();
         }
 
+        private void OnEnable()
+        {
+            BuildMetricsStatus.OnStatusChanged += Repaint;
+        }
+
+        private void OnDisable()
+        {
+            BuildMetricsStatus.OnStatusChanged -= Repaint;
+        }
+
         private void OnGUI()
         {
             DrawToolbar();
+            DrawUploadStatusBar();
 
             switch (currentView)
             {
@@ -54,6 +65,75 @@ namespace BuildMetrics.Editor
                     DrawComparisonView();
                     break;
             }
+        }
+
+        private void DrawUploadStatusBar()
+        {
+            var state = BuildMetricsStatus.LastUploadState;
+            if (state == BuildMetricsStatus.UploadState.None)
+                return;
+
+            Color barColor;
+            string icon;
+            string label;
+
+            switch (state)
+            {
+                case BuildMetricsStatus.UploadState.Uploading:
+                    barColor = new Color(0.1f, 0.35f, 0.55f);
+                    icon     = "↑";
+                    label    = "Uploading build metrics…";
+                    break;
+                case BuildMetricsStatus.UploadState.Success:
+                    barColor = new Color(0.1f, 0.35f, 0.15f);
+                    icon     = "✓";
+                    label    = $"Uploaded — {BuildMetricsStatus.LastUploadDetail}";
+                    break;
+                default: // Failed
+                    barColor = new Color(0.45f, 0.1f, 0.1f);
+                    icon     = "✕";
+                    label    = $"Upload failed — {BuildMetricsStatus.LastUploadError}";
+                    break;
+            }
+
+            var savedBg = GUI.backgroundColor;
+            GUI.backgroundColor = barColor;
+
+            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+
+            var iconStyle = new GUIStyle(EditorStyles.toolbarButton)
+            {
+                normal    = { textColor = Color.white },
+                fontStyle = FontStyle.Bold,
+                fontSize  = 13
+            };
+            var labelStyle = new GUIStyle(EditorStyles.toolbarButton)
+            {
+                normal    = { textColor = Color.white },
+                alignment = TextAnchor.MiddleLeft
+            };
+
+            GUILayout.Label(icon, iconStyle, GUILayout.Width(22));
+            GUILayout.Label(label, labelStyle);
+            GUILayout.FlexibleSpace();
+
+            if (state == BuildMetricsStatus.UploadState.Success)
+            {
+                if (GUILayout.Button("View Dashboard →", EditorStyles.toolbarButton, GUILayout.Width(130)))
+                    UnityEngine.Application.OpenURL(BuildMetricsConstants.DashboardUrl);
+            }
+            else if (state == BuildMetricsStatus.UploadState.Failed)
+            {
+                if (GUILayout.Button("Fix Setup →", EditorStyles.toolbarButton, GUILayout.Width(80)))
+                    BuildMetricsSetupWizard.ShowWizard();
+            }
+
+            if (GUILayout.Button("✕", EditorStyles.toolbarButton, GUILayout.Width(22)))
+                BuildMetricsStatus.Clear();
+
+            EditorGUILayout.EndHorizontal();
+
+            GUI.backgroundColor = savedBg;
         }
 
         private void DrawToolbar()
@@ -445,12 +525,13 @@ namespace BuildMetrics.Editor
             platformFilter = chartPlatformFilter == "Auto" ? "All" : resolvedPlatform;
             artifactFilter = chartArtifactFilter;
 
-            // Get builds to show (never mix platforms)
+            // Get builds to show: most recent ChartMaxPoints, displayed oldest→newest left→right
             var buildsToShow = history.builds
                 .Where(b => b.platform == resolvedPlatform)
                 .Where(b => chartArtifactFilter == "All" || b.artifactType == chartArtifactFilter)
+                .OrderByDescending(b => b.timestampUnix)
+                .Take(BuildHistoryData.ChartMaxPoints)
                 .OrderBy(b => b.timestampUnix)
-                .Take(10)
                 .ToList();
 
             if (buildsToShow.Count >= 2)
@@ -527,17 +608,68 @@ namespace BuildMetrics.Editor
         private void DrawListViewFooter(BuildHistoryData history)
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
-
-            EditorGUILayout.LabelField($"Total Builds: {history.builds.Count}/{BuildHistoryData.MaxBuilds}", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(
+                $"Local builds: {history.builds.Count} / {BuildHistoryData.MaxBuilds}",
+                EditorStyles.boldLabel,
+                GUILayout.Width(180));
+            EditorGUILayout.EndHorizontal();
 
             if (history.builds.Count >= BuildHistoryData.MaxBuilds)
             {
-                GUILayout.FlexibleSpace();
-                var style = new GUIStyle(EditorStyles.label) { normal = { textColor = WarningColor } };
-                EditorGUILayout.LabelField("⚠ History full. Oldest build will be deleted on next build.", style);
+                DrawCloudCTABanner();
             }
+        }
+
+        private void DrawCloudCTABanner()
+        {
+            var savedBg = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.18f, 0.22f, 0.38f);
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            GUI.backgroundColor = savedBg;
+
+            EditorGUILayout.BeginHorizontal();
+
+            var titleStyle = new GUIStyle(EditorStyles.boldLabel)
+            {
+                normal = { textColor = new Color(0.7f, 0.85f, 1f) }
+            };
+            EditorGUILayout.LabelField("✨  Take your metrics further", titleStyle);
+            GUILayout.FlexibleSpace();
 
             EditorGUILayout.EndHorizontal();
+
+            var descStyle = new GUIStyle(EditorStyles.label) { wordWrap = true };
+            EditorGUILayout.LabelField(
+                "Connect to the cloud for web dashboard analytics, build trend tracking, " +
+                "regression alerts, and cross-machine history. Free to start.",
+                descStyle);
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.BeginHorizontal();
+
+            var ctaStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontStyle = FontStyle.Bold,
+                normal    = { textColor = Color.white, background = MakeTex(new Color(0.18f, 0.45f, 0.85f)) }
+            };
+
+            if (GUILayout.Button("Get Free Cloud History →", ctaStyle, GUILayout.Height(28), GUILayout.Width(220)))
+                UnityEngine.Application.OpenURL(BuildMetricsConstants.DashboardUrl);
+
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.Space(4);
+
+            EditorGUILayout.EndVertical();
+        }
+
+        private static Texture2D MakeTex(Color col)
+        {
+            var tex = new Texture2D(1, 1);
+            tex.SetPixel(0, 0, col);
+            tex.Apply();
+            return tex;
         }
 
         private void DrawEmptyState()
