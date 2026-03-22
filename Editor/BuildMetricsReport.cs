@@ -126,12 +126,21 @@ namespace BuildMetrics.Editor
     }
 
     [Serializable]
+    public class TopFolder
+    {
+        public string path;
+        public long size;
+        public int count;
+    }
+
+    [Serializable]
     public class AssetBreakdown
     {
         public bool hasAssets;
         public long totalAssetsSize;
         public int totalAssets;
         public AssetCategoryData textures;
+        public AssetCategoryData spriteAtlases;
         public AssetCategoryData audio;
         public AssetCategoryData models;
         public AssetCategoryData animations;
@@ -144,6 +153,7 @@ namespace BuildMetrics.Editor
         public AssetCategoryData videos;
         public AssetCategoryData otherAssets;
         public TopFile[] topAssets; // Top 20 largest assets from Assets/**
+        public TopFolder[] topFolders; // Top 10 folders from the deduplicated asset list
     }
 
     [Serializable]

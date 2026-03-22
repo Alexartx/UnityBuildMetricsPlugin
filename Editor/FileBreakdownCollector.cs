@@ -877,21 +877,7 @@ namespace BuildMetrics.Editor
 
             try
             {
-                var categories = new Dictionary<string, AssetCategoryData>
-                {
-                    ["textures"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["audio"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["models"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["animations"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["prefabs"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["scenes"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["scripts"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["shaders"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["materials"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["fonts"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["videos"] = new AssetCategoryData { size = 0, count = 0 },
-                    ["otherAssets"] = new AssetCategoryData { size = 0, count = 0 }
-                };
+                var categories = CreateAssetCategories();
 
                 var allAssets = new List<TopFile>();
 
@@ -932,7 +918,8 @@ namespace BuildMetrics.Editor
                             hasAssets = false,
                             totalAssetsSize = 0,
                             totalAssets = 0,
-                            topAssets = new TopFile[0]
+                            topAssets = new TopFile[0],
+                            topFolders = new TopFolder[0]
                         };
                     }
                 }
@@ -950,12 +937,27 @@ namespace BuildMetrics.Editor
                     .Take(20)
                     .ToArray();
 
+                var topFolders = BuildTopFolders(deduplicatedAssets);
+
+                // Rebuild category totals from the deduplicated asset list so the cards, totals,
+                // and top assets all use the same source of truth.
+                categories = CreateAssetCategories();
+                foreach (var asset in deduplicatedAssets)
+                {
+                    var category = CategorizeAssetByType(asset.path);
+                    var data = categories[category];
+                    data.size += asset.size;
+                    data.count++;
+                    categories[category] = data;
+                }
+
                 var breakdown = new AssetBreakdown
                 {
                     hasAssets = true,
                     totalAssetsSize = deduplicatedAssets.Sum(a => a.size),
                     totalAssets = deduplicatedAssets.Count,
                     textures = categories["textures"],
+                    spriteAtlases = categories["spriteAtlases"],
                     audio = categories["audio"],
                     models = categories["models"],
                     animations = categories["animations"],
@@ -967,7 +969,8 @@ namespace BuildMetrics.Editor
                     fonts = categories["fonts"],
                     videos = categories["videos"],
                     otherAssets = categories["otherAssets"],
-                    topAssets = topAssets
+                    topAssets = topAssets,
+                    topFolders = topFolders
                 };
 
                 // Save successful breakdown to cache for future use
@@ -980,6 +983,71 @@ namespace BuildMetrics.Editor
                 UnityEngine.Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Failed to collect asset breakdown: {ex.Message}");
                 return null;
             }
+        }
+
+        private static Dictionary<string, AssetCategoryData> CreateAssetCategories()
+        {
+            return new Dictionary<string, AssetCategoryData>
+            {
+                ["textures"] = new AssetCategoryData { size = 0, count = 0 },
+                ["spriteAtlases"] = new AssetCategoryData { size = 0, count = 0 },
+                ["audio"] = new AssetCategoryData { size = 0, count = 0 },
+                ["models"] = new AssetCategoryData { size = 0, count = 0 },
+                ["animations"] = new AssetCategoryData { size = 0, count = 0 },
+                ["prefabs"] = new AssetCategoryData { size = 0, count = 0 },
+                ["scenes"] = new AssetCategoryData { size = 0, count = 0 },
+                ["scripts"] = new AssetCategoryData { size = 0, count = 0 },
+                ["shaders"] = new AssetCategoryData { size = 0, count = 0 },
+                ["materials"] = new AssetCategoryData { size = 0, count = 0 },
+                ["fonts"] = new AssetCategoryData { size = 0, count = 0 },
+                ["videos"] = new AssetCategoryData { size = 0, count = 0 },
+                ["otherAssets"] = new AssetCategoryData { size = 0, count = 0 }
+            };
+        }
+
+        private static TopFolder[] BuildTopFolders(List<TopFile> deduplicatedAssets)
+        {
+            return deduplicatedAssets
+                .Select(asset => new
+                {
+                    Folder = GetAssetFolderKey(asset.path),
+                    Asset = asset
+                })
+                .Where(item => !string.IsNullOrEmpty(item.Folder))
+                .GroupBy(item => item.Folder)
+                .Select(group => new TopFolder
+                {
+                    path = group.Key,
+                    size = group.Sum(item => item.Asset.size),
+                    count = group.Count()
+                })
+                .OrderByDescending(folder => folder.size)
+                .Take(10)
+                .ToArray();
+        }
+
+        private static string GetAssetFolderKey(string assetPath)
+        {
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return null;
+            }
+
+            var normalizedPath = assetPath.Replace('\\', '/');
+            var segments = normalizedPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0 || !string.Equals(segments[0], "Assets", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var directorySegments = segments.Take(Math.Max(segments.Length - 1, 1)).ToArray();
+            if (directorySegments.Length <= 1)
+            {
+                return "Assets";
+            }
+
+            var depth = Math.Min(directorySegments.Length, 3);
+            return string.Join("/", directorySegments.Take(depth));
         }
 
         private static void CollectAssetsFromPackedAssets(
@@ -1271,6 +1339,11 @@ namespace BuildMetrics.Editor
             var lowerPath = path.ToLowerInvariant();
 
             // Textures
+            if (lowerPath.EndsWith(".spriteatlas") || lowerPath.EndsWith(".spriteatlasv2"))
+            {
+                return "spriteAtlases";
+            }
+
             if (lowerPath.EndsWith(".png") || lowerPath.EndsWith(".jpg") || lowerPath.EndsWith(".jpeg") ||
                 lowerPath.EndsWith(".tga") || lowerPath.EndsWith(".psd") || lowerPath.EndsWith(".tif") ||
                 lowerPath.EndsWith(".tiff") || lowerPath.EndsWith(".gif") || lowerPath.EndsWith(".bmp") ||

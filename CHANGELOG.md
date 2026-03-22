@@ -5,6 +5,20 @@ All notable changes to Build Metrics for Unity will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-03-22
+
+### Added
+- Asset Breakdown now reports a dedicated `Sprite Atlases` bucket
+- Asset Breakdown now includes `Top Folders` to highlight the heaviest project areas
+- Dashboard asset details now show an attribution coverage badge (`Attributed assets / Full build`)
+
+### Fixed
+- Asset Breakdown category totals are now rebuilt from the deduplicated asset list, so cards and totals no longer overcount duplicate asset entries
+- Empty asset state messaging is now accurate for all collection failure modes, not just IL2CPP builds
+
+### Changed
+- Asset Breakdown copy now clarifies that it represents attributed project assets from `Assets/`
+
 ## [1.0.4] - 2026-03-16
 
 ### Added
