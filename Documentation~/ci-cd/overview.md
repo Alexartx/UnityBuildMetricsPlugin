@@ -73,15 +73,7 @@ Build Metrics should work with any CI/CD platform that supports:
 
 **Best for:** New to CI/CD, using GitHub
 
-Use our official GitHub Action wrapper:
-
-```yaml
-- uses: moonlightember/unity-build-metrics-action@v1
-  with:
-    unity-version: 'auto'
-    build-target: Android
-    build-metrics-api-key: ${{ secrets.BUILD_METRICS_API_KEY }}
-```
+Use GameCI and pass your API key via environment variables or command line args.
 
 **Docs:** [GitHub Actions Guide](github-actions.md)
 
@@ -114,7 +106,7 @@ Call the Build Metrics API from your C# build scripts:
 BuildMetricsUploader.UploadBuildReport(report);
 ```
 
-**Docs:** [Advanced Integration](https://moonlightember.com/products/build-metrics/docs/advanced/programmatic-api)
+**Docs:** Advanced integration guide coming soon.
 
 ---
 
@@ -125,7 +117,7 @@ BuildMetricsUploader.UploadBuildReport(report);
 **Option 1: GameCI (Hosted Runners)** ✅ Verified
 → [GitHub Actions with GameCI](github-actions.md)
 
-**Option 2: Self-Hosted Runners** ⚠️ Untested
+**Option 2: Self-Hosted Runners**
 → [GitHub Actions Self-Hosted](github-actions-self-hosted.md)
 
 ---
@@ -248,10 +240,11 @@ unity-editor -batchmode \
 
 ### Minimum Requirements
 
-- ✅ Unity 2020.3 LTS or newer
-- ✅ Build Metrics plugin installed
+- ✅ Unity 2022.2 or newer
+- ✅ Build Metrics core package installed
 - ✅ API key from dashboard
 - ✅ Network access to `buildmetrics-api.onrender.com`
+ - ⚠️ iOS builds: default size is Xcode project size (IPA size requires a post-export step)
 
 ### Optional (Recommended)
 
@@ -271,9 +264,6 @@ BUILD_METRICS_API_KEY=bm_your_api_key_here
 ### Optional
 
 ```bash
-# Custom API endpoint (self-hosted)
-BUILD_METRICS_API_URL=https://your-api.example.com
-
 # Disable auto-upload
 BUILD_METRICS_AUTO_UPLOAD=false
 

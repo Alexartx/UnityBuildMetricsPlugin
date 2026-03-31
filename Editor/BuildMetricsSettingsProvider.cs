@@ -47,7 +47,7 @@ namespace BuildMetrics.Editor
 
                             if (GUILayout.Button("Open Dashboard to Get API Key", GUILayout.Height(25)))
                             {
-                                Application.OpenURL(BuildMetricsConstants.DashboardUrl);
+                                Application.OpenURL(BuildMetricsCloudConstants.DashboardUrl);
                             }
                         }
                         else
@@ -82,7 +82,7 @@ namespace BuildMetrics.Editor
                     }
                     if (GUILayout.Button("View Dashboard", GUILayout.Height(25)))
                     {
-                        Application.OpenURL(BuildMetricsConstants.DashboardUrl);
+                        Application.OpenURL(BuildMetricsCloudConstants.DashboardUrl);
                     }
                     EditorGUILayout.EndHorizontal();
                 }

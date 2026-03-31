@@ -31,6 +31,10 @@ namespace BuildMetrics.Editor
         public GitInfo git;
         public FileBreakdown fileBreakdown;
         public AssetBreakdown assetBreakdown;
+        public BuildStepInfo[] buildSteps;
+        public AssetSceneUsage[] sceneUsage;
+        public EngineModuleInfo[] engineModules;
+        public AndroidPackageInsight androidPackageInsight;
     }
 
     [Serializable]
@@ -131,6 +135,52 @@ namespace BuildMetrics.Editor
         public string path;
         public long size;
         public int count;
+    }
+
+    [Serializable]
+    public class BuildStepInfo
+    {
+        public string name;
+        public int depth;
+        public long durationMs;
+        public int messageCount;
+    }
+
+    [Serializable]
+    public class AssetSceneUsage
+    {
+        public string assetPath;
+        public string category;
+        public long sizeBytes;
+        public string[] scenePaths;
+    }
+
+    [Serializable]
+    public class EngineModuleInfo
+    {
+        public string name;
+        public string[] reasons;
+    }
+
+    [Serializable]
+    public class AndroidPackageInsight
+    {
+        public long nativeLibrariesSize;
+        public long dexCodeSize;
+        public long androidResourcesSize;
+        public long unityDataSize;
+        public long streamingAssetsSize;
+        public long manifestSize;
+        public AndroidSdkInsight[] sdkInsights;
+    }
+
+    [Serializable]
+    public class AndroidSdkInsight
+    {
+        public string name;
+        public long sizeBytes;
+        public int fileCount;
+        public string[] evidence;
     }
 
     [Serializable]

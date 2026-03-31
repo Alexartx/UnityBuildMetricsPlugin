@@ -19,8 +19,14 @@ namespace BuildMetrics.Editor
         public GitInfo git;
         public FileBreakdown fileBreakdown;
         public AssetBreakdown assetBreakdown;
+        public BuildStepInfo[] buildSteps;
+        public AssetSceneUsage[] sceneUsage;
+        public EngineModuleInfo[] engineModules;
+        public AndroidPackageInsight androidPackageInsight;
 
         public DateTime Timestamp => DateTimeOffset.FromUnixTimeSeconds(timestampUnix).LocalDateTime;
+        public string ArtifactLabel => string.IsNullOrWhiteSpace(artifactType) ? "folder" : artifactType;
+        public string ConfigurationKey => BuildHistoryData.GetConfigurationKey(platform, artifactType);
 
         public string TimeAgo
         {
@@ -52,7 +58,11 @@ namespace BuildMetrics.Editor
                 scriptingBackend = report.scriptingBackend,
                 git = report.git,
                 fileBreakdown = report.fileBreakdown,
-                assetBreakdown = report.assetBreakdown
+                assetBreakdown = report.assetBreakdown,
+                buildSteps = report.buildSteps,
+                sceneUsage = report.sceneUsage,
+                engineModules = report.engineModules,
+                androidPackageInsight = report.androidPackageInsight
             };
         }
     }

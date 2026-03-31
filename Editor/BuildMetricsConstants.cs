@@ -2,21 +2,13 @@ namespace BuildMetrics.Editor
 {
     public static class BuildMetricsConstants
     {
-        // Version
-        public const string Version = "1.0.0";
-
-        // URLs
-        public const string DashboardUrl = "https://app.buildmetrics.moonlightember.com/dashboard";
-        public const string DocsUrl = "https://moonlightember.com/products/build-metrics/docs";
-
-        // Support
+        public const string Version = "1.1.0";
         public const string SupportEmail = "support@moonlightember.com";
-
-        // Logging
         public const string LogPrefix = "[BuildMetrics]";
 
-        // EditorPrefs Keys
-        public const string SetupCompletePref = "BuildMetrics.SetupComplete";
-        public const string SetupDismissedPref = "BuildMetrics.SetupDismissed";
+        public static string ReadmeAssetPath => BuildMetricsPackagePaths.ReadmeAssetPath;
+        public static string InstallationGuideAssetPath => BuildMetricsPackagePaths.InstallationGuideAssetPath;
+        public static string OfflineFeaturesAssetPath => BuildMetricsPackagePaths.OfflineFeaturesAssetPath;
+        public static string PackageOverviewAssetPath => BuildMetricsPackagePaths.PackageOverviewAssetPath;
     }
 }

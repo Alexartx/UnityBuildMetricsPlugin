@@ -5,6 +5,24 @@ All notable changes to Build Metrics for Unity will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-31
+
+### Added
+- Public UPM package now bundles the local core and cloud workflows in one install
+- Setup Wizard, settings, upload queue, dashboard actions, and CI/CD docs are included directly in the package
+- Dynamic package-path resolution so local docs open correctly from git installs
+
+### Fixed
+- Standalone build size now includes companion `_Data` folders
+- Artifact detection now prefers the correct packaged Android or iOS output
+- Android package parsing now understands AAB module-prefixed paths
+- WebGL and macOS standalone breakdowns now classify StreamingAssets more accurately
+- Android package insights now bucket DEX, resources, and assets more accurately
+
+### Changed
+- Unity support floor raised to `2022.2+`
+- Public git package is now generated from the canonical source-of-truth packages
+
 ## [1.0.5] - 2026-03-22
 
 ### Added

@@ -44,7 +44,38 @@ Tools → Build Metrics → Setup Wizard
 
 ---
 
-### Method 2: Environment Variable (Team/CI)
+### Method 2: Command Line Arguments (CI/CD)
+
+**Best for:**
+- GameCI / Docker-based CI
+- Build scripts that pass custom parameters
+
+**How it works:**
+- API key passed via Unity command line
+- Highest priority (overrides env var and EditorPrefs)
+
+**Setup:**
+
+```bash
+Unity -quit -batchmode -projectPath . \
+  -executeMethod YourBuild.Build \
+  -BUILD_METRICS_API_KEY bm_your_api_key_here
+```
+
+**GameCI example:**
+
+```yaml
+- uses: game-ci/unity-builder@v4
+  env:
+    BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
+  with:
+    customParameters: "-BUILD_METRICS_API_KEY ${{ secrets.BUILD_METRICS_API_KEY }}"
+    targetPlatform: Android
+```
+
+---
+
+### Method 3: Environment Variable (Team/CI)
 
 **Best for:**
 - Team collaboration
@@ -103,10 +134,6 @@ Access via: **Tools → Build Metrics → Settings**
 - When enabled: Metrics sent automatically after each build
 - When disabled: Use "Tools → Build Metrics → Upload Last Build" manually
 
-**API URL** (Advanced)
-- Default: `https://buildmetrics-api.onrender.com`
-- Change only if using self-hosted API
-
 ---
 
 ## Advanced Configuration
@@ -125,17 +152,6 @@ Then use:
 ```
 Tools → Build Metrics → Upload Last Build
 ```
-
-### Custom API Endpoint
-
-For self-hosted API:
-
-```csharp
-// Set via environment variable
-BUILD_METRICS_API_URL=https://your-api.example.com
-```
-
----
 
 ## API Key Management
 

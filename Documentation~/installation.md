@@ -1,150 +1,79 @@
 # Installation Guide
 
-Complete installation instructions for Build Metrics Unity plugin.
+Build Metrics is distributed here as a single public UPM package that includes both local build analysis and cloud upload workflows.
 
 ## Requirements
 
-- **Unity 2020.3 LTS or newer** (minimum)
-- **Unity 2022.2 or newer** (recommended for full file breakdown)
+- **Unity 2022.2 or newer**
 - Windows, macOS, or Linux
-- .NET Standard 2.1
-- Internet connection (for cloud sync)
-- Git (optional, for commit tracking)
+- Git optional for commit metadata
 
----
+## Install from Git
 
-## Installation Methods
+1. Open **Window -> Package Manager**
+2. Click **+ -> Add package from git URL**
+3. Paste:
 
-### Method 1: UPM via Git URL (Recommended)
+```text
+https://github.com/Alexartx/UnityBuildMetricsPlugin.git
+```
 
-Fastest method with automatic updates.
+4. Wait for Unity to resolve and compile the package
 
-**Steps:**
+## Verify the Install
 
-1. Open Unity Editor
-2. Window → Package Manager
-3. Click "+" → Add package from git URL
-4. Enter URL:
-   ```
-   https://github.com/Alexartx/UnityBuildMetricsPlugin.git
-   ```
-5. Click "Add"
+After install, open **Tools -> Build Metrics**.
 
-**Advantages:**
-- ✅ Automatic updates
-- ✅ Fastest installation
-- ✅ No manual downloads
+You should see:
 
----
+- Build History
+- Open Reports Folder
+- Documentation
+- Setup Wizard
+- Settings
+- Upload Last Build
+- Upload All Pending
+- View Dashboard
+- About
 
-### Method 2: Unity Package (.unitypackage)
+## Local Usage Without Cloud Setup
 
-Manual installation for offline environments.
+The package is usable before you configure an API key:
 
-**Steps:**
+- builds are still captured locally
+- reports are written to `BuildReports/`
+- recent history is stored in `Library/BuildMetrics/history.json`
 
-1. Download latest `.unitypackage` from [Releases](https://github.com/Alexartx/UnityBuildMetricsPlugin/releases)
-2. In Unity: Assets → Import Package → Custom Package
-3. Select downloaded file
-4. Click "Import All"
-5. Wait for import to complete
+## Enable Cloud Features
 
-**Advantages:**
-- ✅ Works offline
-- ✅ Full control over version
-- ✅ No Git required
+If you want uploads and dashboard features:
 
----
+1. Open **Tools -> Build Metrics -> Setup Wizard**
+2. Enter or validate your API key
+3. Leave auto-upload enabled if you want uploads after every successful build
 
-### Method 3: Unity Asset Store
+You can also configure the package with:
 
-*Coming soon*
-
----
-
-## Verification
-
-After installation, verify the plugin loaded correctly:
-
-1. Check Unity menu: **Tools → Build Metrics**
-2. You should see:
-   - Setup Wizard
-   - Settings
-   - Build History
-   - Upload Last Build
-
-If menu items don't appear:
-- Restart Unity Editor
-- Check Console for errors
-- Verify Unity version compatibility
-
----
-
-## Next Steps
-
-After installation:
-
-1. [Get your API key](https://app.buildmetrics.moonlightember.com) from the dashboard
-2. Configure the plugin (see [Configuration](configuration.md))
-3. Build your project to start tracking metrics
-
----
-
-## Uninstallation
-
-### If installed via UPM:
-1. Window → Package Manager
-2. Find "Build Metrics" in package list
-3. Click "Remove"
-
-### If installed via .unitypackage:
-1. Delete folder: `Assets/BuildMetrics/`
-2. Delete meta file: `Assets/BuildMetrics.meta`
-
----
+- command-line argument `-BUILD_METRICS_API_KEY`
+- environment variable `BUILD_METRICS_API_KEY`
 
 ## Troubleshooting
 
-### Package Manager shows "Error adding package"
+### Package not showing in the menu
 
-**Cause:** Git not installed or not in PATH
+1. Open **Window -> Console**
+2. Resolve any existing project compile errors
+3. Let Unity finish recompiling
 
-**Solution:**
-```bash
-# Install Git
-# macOS:
-brew install git
+### No uploads happen after setup
 
-# Windows:
-# Download from https://git-scm.com/download/win
-
-# Verify Git installation:
-git --version
-```
-
-### Import fails with "Invalid package" error
-
-**Cause:** Downloaded file corrupted
-
-**Solution:**
-- Re-download .unitypackage
-- Clear browser cache
-- Try different browser
-
-### Plugin not showing in Tools menu
-
-**Cause:** Unity didn't compile scripts
-
-**Solution:**
-1. Window → Console
-2. Look for compilation errors
-3. Fix any errors shown
-4. Wait for Unity to recompile
-
----
+1. Confirm your API key is valid
+2. Check **Tools -> Build Metrics -> Settings**
+3. Confirm **Auto Upload** is enabled
+4. Use **Upload Last Build** once to verify connectivity
 
 ## See Also
 
 - [Configuration Guide](configuration.md)
 - [Offline Features](offline-features.md)
-- [CI/CD Integration](ci-cd/overview.md)
+- [CI/CD Overview](ci-cd/overview.md)

@@ -90,7 +90,13 @@ namespace BuildMetrics.Editor
                     var json    = File.ReadAllText(path, Encoding.UTF8);
                     var history = JsonUtility.FromJson<BuildHistoryData>(json);
                     if (history?.builds != null)
+                    {
+                        if (history.profiles == null)
+                        {
+                            history.profiles = new System.Collections.Generic.List<BaselineBudgetProfile>();
+                        }
                         return history;
+                    }
                 }
                 catch (Exception ex)
                 {

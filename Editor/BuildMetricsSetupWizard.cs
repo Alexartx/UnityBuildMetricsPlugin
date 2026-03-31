@@ -26,7 +26,7 @@ namespace BuildMetrics.Editor
                 bool hasApiKey = !string.IsNullOrEmpty(BuildMetricsSettings.ApiKey);
 
                 // Check if user explicitly dismissed setup (different from completing it)
-                bool userDismissedSetup = EditorPrefs.GetBool(BuildMetricsConstants.SetupDismissedPref, false);
+                bool userDismissedSetup = EditorPrefs.GetBool(BuildMetricsCloudConstants.SetupDismissedPref, false);
 
                 // Only auto-show if no API key AND user hasn't explicitly dismissed
                 if (!hasApiKey && !userDismissedSetup)
@@ -110,16 +110,16 @@ namespace BuildMetrics.Editor
             if (!string.IsNullOrEmpty(BuildMetricsSettings.ApiKey))
             {
                 // Clear the dismissed flag so wizard can show again if API key is removed later
-                EditorPrefs.DeleteKey(BuildMetricsConstants.SetupDismissedPref);
+                EditorPrefs.DeleteKey(BuildMetricsCloudConstants.SetupDismissedPref);
 
                 // Mark setup as complete
-                EditorPrefs.SetBool(BuildMetricsConstants.SetupCompletePref, true);
+                EditorPrefs.SetBool(BuildMetricsCloudConstants.SetupCompletePref, true);
             }
             else
             {
                 // No API key configured - mark as dismissed
                 // (so it doesn't keep popping up on every editor restart)
-                EditorPrefs.SetBool(BuildMetricsConstants.SetupDismissedPref, true);
+                EditorPrefs.SetBool(BuildMetricsCloudConstants.SetupDismissedPref, true);
             }
         }
 
@@ -188,7 +188,7 @@ namespace BuildMetrics.Editor
 
             if (GUILayout.Button("Open Dashboard to Get API Key", GUILayout.Height(30)))
             {
-                Application.OpenURL(BuildMetricsConstants.DashboardUrl);
+                Application.OpenURL(BuildMetricsCloudConstants.DashboardUrl);
             }
 
             GUILayout.Space(15);
@@ -256,7 +256,7 @@ namespace BuildMetrics.Editor
 
             if (GUILayout.Button("Documentation", GUILayout.Height(30)))
             {
-                Application.OpenURL(BuildMetricsConstants.DocsUrl);
+                Application.OpenURL(BuildMetricsCloudConstants.DocsUrl);
             }
 
             if (GUILayout.Button("Skip Setup", GUILayout.Height(30)))
@@ -267,7 +267,7 @@ namespace BuildMetrics.Editor
                     "Skip",
                     "Cancel"))
                 {
-                    EditorPrefs.SetBool(BuildMetricsConstants.SetupDismissedPref, true);
+                    EditorPrefs.SetBool(BuildMetricsCloudConstants.SetupDismissedPref, true);
                     Close();
                 }
             }

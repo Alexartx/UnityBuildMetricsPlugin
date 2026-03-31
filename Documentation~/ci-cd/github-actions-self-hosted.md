@@ -251,14 +251,6 @@ jobs:
 
 ## Advanced Configuration
 
-### Custom API Endpoint (Self-Hosted API)
-
-```yaml
-env:
-  BUILD_METRICS_API_KEY: ${{ secrets.BUILD_METRICS_API_KEY }}
-  BUILD_METRICS_API_URL: https://your-api.example.com
-```
-
 ### Disable Auto-Upload (Manual Mode)
 
 ```yaml

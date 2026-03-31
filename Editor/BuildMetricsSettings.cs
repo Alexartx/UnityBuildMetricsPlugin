@@ -75,7 +75,23 @@ namespace BuildMetrics.Editor
         /// Priority: Environment Variable > EditorPrefs > Default
         /// Note: API URL is global (not project-specific) since it's not sensitive data.
         /// </summary>
-        public static string ApiUrl => EditorPrefs.GetString(ApiUrlPref, "https://buildmetrics-api.onrender.com/api/builds");
+        public static string ApiUrl
+        {
+            get
+            {
+                var envUrl = Environment.GetEnvironmentVariable(ApiUrlEnvVar);
+                if (!string.IsNullOrEmpty(envUrl))
+                {
+                    return envUrl;
+                }
+
+                return EditorPrefs.GetString(ApiUrlPref, BuildMetricsCloudConstants.DefaultApiUrl);
+            }
+            set
+            {
+                EditorPrefs.SetString(ApiUrlPref, value ?? BuildMetricsCloudConstants.DefaultApiUrl);
+            }
+        }
 
         /// <summary>
         /// Auto-upload setting (project-specific).

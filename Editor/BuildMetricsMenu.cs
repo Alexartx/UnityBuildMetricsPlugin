@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -8,99 +9,31 @@ namespace BuildMetrics.Editor
         private const string MenuRoot = "Tools/Build Metrics/";
         private const int MenuPriority = 1000;
 
-        [MenuItem(MenuRoot + "Setup Wizard", false, MenuPriority)]
-        public static void OpenSetupWizard()
+        [MenuItem(MenuRoot + "Open Reports Folder", false, MenuPriority + 20)]
+        public static void OpenReportsFolder()
         {
-            BuildMetricsSetupWizard.ShowWizard();
+            Directory.CreateDirectory(BuildMetricsStorage.ReportsDirectory);
+            EditorUtility.RevealInFinder(BuildMetricsStorage.ReportsDirectory);
         }
 
-        [MenuItem(MenuRoot + "Settings", false, MenuPriority + 1)]
-        public static void OpenSettings()
-        {
-            SettingsService.OpenUserPreferences("Preferences/Build Metrics");
-        }
-
-        [MenuItem(MenuRoot + "Upload Last Build", false, MenuPriority + 20)]
-        public static void UploadLastBuild()
-        {
-            var lastReport = BuildMetricsStorage.GetLatestReport();
-            if (string.IsNullOrEmpty(lastReport))
-            {
-                EditorUtility.DisplayDialog(
-                    "No Build Found",
-                    "No build metrics found. Build your project first.",
-                    "OK"
-                );
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(BuildMetricsSettings.ApiKey))
-            {
-                var openSetup = EditorUtility.DisplayDialog(
-                    "API Key Required",
-                    $"API key is not configured.\n\nGet your API key from:\n{BuildMetricsConstants.DashboardUrl}",
-                    "Open Setup Wizard",
-                    "Cancel"
-                );
-
-                if (openSetup)
-                {
-                    OpenSetupWizard();
-                }
-                return;
-            }
-
-            BuildMetricsUploader.TryUploadReport(lastReport);
-        }
-
-        [MenuItem(MenuRoot + "Upload All Pending", false, MenuPriority + 21)]
-        public static void UploadAllPending()
-        {
-            var pending = BuildMetricsStorage.GetPendingReports();
-            if (pending.Length == 0)
-            {
-                EditorUtility.DisplayDialog(
-                    "No Pending Uploads",
-                    "No pending build metrics found.",
-                    "OK"
-                );
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(BuildMetricsSettings.ApiKey))
-            {
-                var openSetup = EditorUtility.DisplayDialog(
-                    "API Key Required",
-                    $"API key is not configured.\n\nGet your API key from:\n{BuildMetricsConstants.DashboardUrl}",
-                    "Open Setup Wizard",
-                    "Cancel"
-                );
-
-                if (openSetup)
-                {
-                    OpenSetupWizard();
-                }
-                return;
-            }
-
-            BuildMetricsUploader.TryUploadPending();
-            EditorUtility.DisplayDialog(
-                "Upload Started",
-                $"Uploading {pending.Length} pending build metric(s).\n\nCheck the Console for status.",
-                "OK"
-            );
-        }
-
-        [MenuItem(MenuRoot + "View Dashboard", false, MenuPriority + 40)]
-        public static void OpenDashboard()
-        {
-            Application.OpenURL(BuildMetricsConstants.DashboardUrl);
-        }
-
-        [MenuItem(MenuRoot + "Documentation", false, MenuPriority + 41)]
+        [MenuItem(MenuRoot + "Documentation", false, MenuPriority + 21)]
         public static void OpenDocumentation()
         {
-            Application.OpenURL(BuildMetricsConstants.DocsUrl);
+            var asset = BuildMetricsPackagePaths.LoadPrimaryDocumentationAsset();
+
+            if (asset == null)
+            {
+                EditorUtility.DisplayDialog(
+                    "Documentation Not Found",
+                    "The local Build Metrics documentation file could not be found.",
+                    "OK"
+                );
+                return;
+            }
+
+            Selection.activeObject = asset;
+            EditorGUIUtility.PingObject(asset);
+            AssetDatabase.OpenAsset(asset);
         }
 
         [MenuItem(MenuRoot + "About", false, MenuPriority + 60)]
@@ -110,8 +43,8 @@ namespace BuildMetrics.Editor
                 "Build Metrics",
                 $"Build Metrics for Unity\n" +
                 $"Version {BuildMetricsConstants.Version}\n\n" +
-                $"Track build performance and catch regressions.\n\n" +
-                $"Dashboard: {BuildMetricsConstants.DashboardUrl}\n" +
+                $"Track build performance and catch regressions locally.\n\n" +
+                $"Install the optional Build Metrics Cloud add-on if you want dashboard upload and CI onboarding.\n\n" +
                 $"Support: {BuildMetricsConstants.SupportEmail}",
                 "OK"
             );

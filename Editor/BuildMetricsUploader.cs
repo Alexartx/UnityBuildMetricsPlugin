@@ -115,7 +115,7 @@ namespace BuildMetrics.Editor
         }
         public static void TryUploadPending()
         {
-            var pending = BuildMetricsStorage.GetPendingReports();
+            var pending = BuildMetricsCloudStorage.GetPendingReports();
             foreach (var reportPath in pending)
             {
                 TryUploadReport(reportPath, isPending: true);
@@ -135,13 +135,13 @@ namespace BuildMetrics.Editor
             // Validate API key
             if (!ValidateApiKey(apiKey, out string validationError))
             {
-                var msg = $"{validationError}. Get your API key at: {BuildMetricsConstants.DashboardUrl}";
+                var msg = $"{validationError}. Get your API key at: {BuildMetricsCloudConstants.DashboardUrl}";
                 Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} {msg}");
                 BuildMetricsStatus.SetFailed(validationError);
 
                 if (!isPending)
                 {
-                    BuildMetricsStorage.Enqueue(reportPath);
+                    BuildMetricsCloudStorage.Enqueue(reportPath);
                 }
                 return;
             }
@@ -153,7 +153,7 @@ namespace BuildMetrics.Editor
                 BuildMetricsStatus.SetFailed(msg);
                 if (!isPending)
                 {
-                    BuildMetricsStorage.Enqueue(reportPath);
+                    BuildMetricsCloudStorage.Enqueue(reportPath);
                 }
                 return;
             }
@@ -192,7 +192,7 @@ namespace BuildMetrics.Editor
                     BuildMetricsStatus.SetFailed(errorText);
                     if (!isPending)
                     {
-                        BuildMetricsStorage.Enqueue(reportPath);
+                        BuildMetricsCloudStorage.Enqueue(reportPath);
                     }
                 }
             });
@@ -233,7 +233,7 @@ namespace BuildMetrics.Editor
                     if (success)
                     {
                         Debug.Log($"{BuildMetricsConstants.LogPrefix} Build metrics uploaded successfully! " +
-                            $"View dashboard: {BuildMetricsConstants.DashboardUrl}");
+                            $"View dashboard: {BuildMetricsCloudConstants.DashboardUrl}");
                         errorText = "";
                     }
                     else
@@ -266,9 +266,9 @@ namespace BuildMetrics.Editor
                 msg += $" — {request.error}";
 
             if (request.responseCode == 401 || request.responseCode == 403)
-                msg = $"Invalid API key. Check your key at: {BuildMetricsConstants.DashboardUrl}";
+                msg = $"Invalid API key. Check your key at: {BuildMetricsCloudConstants.DashboardUrl}";
             else if (request.responseCode == 402 || request.responseCode == 429)
-                msg = $"Quota exceeded — upgrade your plan at: {BuildMetricsConstants.DashboardUrl}/billing";
+                msg = $"Quota exceeded — upgrade your plan at: {BuildMetricsCloudConstants.DashboardUrl}/billing";
 
             return msg;
         }

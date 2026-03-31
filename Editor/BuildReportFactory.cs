@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -35,6 +36,10 @@ namespace BuildMetrics.Editor
             var gitInfo = GitInfoCollector.Collect();
             var fileBreakdown = FileBreakdownCollector.Collect(report);
             var assetBreakdown = FileBreakdownCollector.CollectAssetBreakdown(report);
+            var buildSteps = BuildInsightsCollector.CollectBuildSteps(report);
+            var sceneUsage = BuildInsightsCollector.CollectSceneUsage(report, assetBreakdown);
+            var engineModules = BuildInsightsCollector.CollectEngineModules(report);
+            var androidPackageInsight = BuildInsightsCollector.CollectAndroidPackageInsight(report);
 
             // Prefer parsed build output totals when available for select platforms.
             if (fileBreakdown != null)
@@ -90,7 +95,11 @@ namespace BuildMetrics.Editor
                 buildNumber = platformBuildNumber,
                 git = gitInfo,
                 fileBreakdown = fileBreakdown,
-                assetBreakdown = assetBreakdown
+                assetBreakdown = assetBreakdown,
+                buildSteps = buildSteps,
+                sceneUsage = sceneUsage,
+                engineModules = engineModules,
+                androidPackageInsight = androidPackageInsight
             };
         }
 
@@ -116,28 +125,27 @@ namespace BuildMetrics.Editor
             {
                 if (File.Exists(outputPath))
                 {
-                    return new FileInfo(outputPath).Length;
+                    var fileInfo = new FileInfo(outputPath);
+                    var standaloneDataDirectory = GetStandaloneCompanionDataDirectory(outputPath);
+                    if (!string.IsNullOrEmpty(standaloneDataDirectory) && Directory.Exists(standaloneDataDirectory))
+                    {
+                        return fileInfo.Length + GetDirectorySize(standaloneDataDirectory);
+                    }
+
+                    return fileInfo.Length;
                 }
 
                 if (Directory.Exists(outputPath))
                 {
-                    var artifacts = Directory.GetFiles(outputPath, "*.*", SearchOption.AllDirectories)
-                        .Where(path => path.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ||
-                                       path.EndsWith(".aab", StringComparison.OrdinalIgnoreCase) ||
-                                       path.EndsWith(".ipa", StringComparison.OrdinalIgnoreCase))
-                        .Select(path => new FileInfo(path))
-                        .ToList();
-
-                    if (artifacts.Count > 0)
+                    var packagedArtifact = GetPrimaryPackagedArtifact(outputPath);
+                    if (packagedArtifact != null)
                     {
-                        return artifacts.OrderByDescending(file => file.Length).First().Length;
+                        return packagedArtifact.Length;
                     }
 
                     if (artifactInfo.Type == "app" || artifactInfo.Type == "xcode" || artifactInfo.Type == "webgl" || artifactInfo.Type == "folder")
                     {
-                        return Directory.GetFiles(outputPath, "*", SearchOption.AllDirectories)
-                            .Select(path => new FileInfo(path).Length)
-                            .Aggregate(0L, (current, size) => current + size);
+                        return GetDirectorySize(outputPath);
                     }
                 }
             }
@@ -156,15 +164,10 @@ namespace BuildMetrics.Editor
 
                 if (Directory.Exists(outputPath))
                 {
-                    var artifacts = Directory.GetFiles(outputPath, "*.*", SearchOption.AllDirectories)
-                        .Where(path => path.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ||
-                                       path.EndsWith(".aab", StringComparison.OrdinalIgnoreCase) ||
-                                       path.EndsWith(".ipa", StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                    if (artifacts.Count > 0)
+                    var packagedArtifact = GetPrimaryPackagedArtifact(outputPath);
+                    if (packagedArtifact != null)
                     {
-                        return FromFilePath(artifacts[0], platform);
+                        return FromFilePath(packagedArtifact.FullName, platform);
                     }
 
                     if (outputPath.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
@@ -185,6 +188,52 @@ namespace BuildMetrics.Editor
             }
 
             return new ArtifactInfo("folder", null);
+        }
+
+        private static FileInfo GetPrimaryPackagedArtifact(string outputPath)
+        {
+            return GetPackagedArtifacts(outputPath).FirstOrDefault();
+        }
+
+        private static IEnumerable<FileInfo> GetPackagedArtifacts(string outputPath)
+        {
+            if (string.IsNullOrWhiteSpace(outputPath) || !Directory.Exists(outputPath))
+            {
+                return Enumerable.Empty<FileInfo>();
+            }
+
+            return Directory.GetFiles(outputPath, "*.*", SearchOption.AllDirectories)
+                .Where(path => path.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ||
+                               path.EndsWith(".aab", StringComparison.OrdinalIgnoreCase) ||
+                               path.EndsWith(".ipa", StringComparison.OrdinalIgnoreCase))
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.Length)
+                .ThenByDescending(file => file.LastWriteTimeUtc)
+                .ThenBy(file => file.FullName, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static string GetStandaloneCompanionDataDirectory(string outputPath)
+        {
+            if (!File.Exists(outputPath))
+            {
+                return null;
+            }
+
+            var directory = Path.GetDirectoryName(outputPath);
+            var executableName = Path.GetFileNameWithoutExtension(outputPath);
+            if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(executableName))
+            {
+                return null;
+            }
+
+            return Path.Combine(directory, executableName + "_Data");
+        }
+
+        private static long GetDirectorySize(string directoryPath)
+        {
+            return Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories)
+                .Select(path => new FileInfo(path).Length)
+                .Aggregate(0L, (current, size) => current + size);
         }
 
         private static string GetPlatformBuildNumber(BuildTarget platform)

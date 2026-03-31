@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -35,18 +34,9 @@ namespace BuildMetrics.Editor
 
                 var buildRecord = BuildRecord.FromMetricsReport(reportData);
                 BuildHistoryStorage.AddBuild(buildRecord);
+                Debug.Log($"{BuildMetricsConstants.LogPrefix} Build metrics saved locally at: {reportPath}");
 
-                BuildMetricsUploader.TryUploadPending();
-
-                if (BuildMetricsSettings.AutoUpload && !string.IsNullOrWhiteSpace(BuildMetricsSettings.ApiKey))
-                {
-                    BuildMetricsUploader.TryUploadReport(reportPath);
-                }
-                else if (string.IsNullOrWhiteSpace(BuildMetricsSettings.ApiKey))
-                {
-                    Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} Build metrics saved locally but not uploaded. " +
-                        $"Configure your API key: Tools → Build Metrics → Setup Wizard");
-                }
+                BuildMetricsExtensions.NotifyReportCaptured(new BuildMetricsCapturedReport(reportPath, reportData, buildRecord));
             }
             catch (Exception ex)
             {

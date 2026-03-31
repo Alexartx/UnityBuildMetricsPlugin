@@ -16,14 +16,27 @@ Build Metrics works seamlessly with [GameCI](https://game.ci) - the most popular
 
 ### Unity License
 
-GameCI requires a Unity license. Choose your license type:
+GameCI requires a Unity license for CI builds.
+
+Important:
+- Local Unity Hub activation and CI activation are not the same thing.
+- Unity Personal users can activate locally in Unity Hub, but CI activation requirements can change over time.
+- Before relying on GitHub Actions in production, verify the current Unity licensing rules and the current GameCI activation guide for your license type.
+
+Choose the section that matches your current license:
 
 <details>
 <summary><b>Unity Personal (Free)</b></summary>
 
-Unity Personal licenses require a `.ulf` license file for CI/CD activation.
+Unity Personal users can use Build Metrics locally, but CI activation is the most likely area to change over time.
 
-**How to get your .ulf file:**
+For GitHub Actions, follow the current GameCI activation guide and verify it still works for your Unity account before adopting it across your team.
+
+This setup is best treated as:
+- suitable for experimentation and small-team validation
+- something to confirm with a real pipeline run before standardizing on it
+
+If your current GameCI flow uses a `.ulf`-based secret setup, it typically looks like this:
 
 1. Open Unity Hub → Manage Licenses
 2. Click "Manual Activation"
@@ -52,6 +65,8 @@ Value: <paste entire .ulf file contents>
 
 <details>
 <summary><b>Unity Pro/Plus/Enterprise</b></summary>
+
+This is the more reliable path for production CI/CD.
 
 **Modern (Named User License):**
 ```
@@ -115,9 +130,13 @@ jobs:
 
       - uses: moonlightember/unity-build-metrics-action@v1
         with:
-          unity-version: 'auto'
-          build-target: Android
+          unity-version: auto
+          target-platform: Android
           build-metrics-api-key: ${{ secrets.BUILD_METRICS_API_KEY }}
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
 ```
 
 **That's it!** Push to GitHub and your builds will automatically upload metrics.
@@ -184,7 +203,7 @@ jobs:
 **Key points:**
 - `customParameters` passes Build Metrics API key to Unity (env vars don't reach Unity in Docker)
 - Disk cleanup prevents "No space left on device" errors
-- GameCI v4 handles license activation automatically
+- GameCI handles the Unity build flow, but license setup still depends on your Unity plan and current GameCI activation guidance
 
 ---
 
@@ -263,7 +282,7 @@ Unity build completes successfully
     ↓
 Build Metrics post-build hook fires
     ↓
-Plugin reads BUILD_METRICS_API_KEY from environment
+Plugin reads BUILD_METRICS_API_KEY from Unity launch parameters
     ↓
 Metrics uploaded to API
     ↓
@@ -322,8 +341,9 @@ env:
 ### License Activation Fails
 
 **Unity Personal:**
-- Verify .ulf file is valid (re-generate if needed)
-- Check `UNITY_EMAIL` and `UNITY_PASSWORD` match
+- Re-check the latest GameCI activation guide for Personal before debugging deeper
+- Verify the credentials/secrets match the Unity account you are using
+- Confirm the pipeline with a small test build before rolling it out widely
 
 **Unity Pro/Plus/Enterprise:**
 - Verify serial number is correct
@@ -389,13 +409,14 @@ env:
 - Enable LFS if using large assets
 - Store all secrets in GitHub Secrets
 - Pass Build Metrics API key via `customParameters`
+- Validate your Unity license flow with one small CI build before team-wide rollout
 
 ### ❌ DON'T
 
 - Hardcode API keys in workflow
 - Use Library caching with GameCI (causes disk space issues)
 - Commit Unity license files
-- Forget to add UNITY_LICENSE env var
+- Assume Unity Personal CI activation behaves the same as local Unity Hub activation
 
 ---
 

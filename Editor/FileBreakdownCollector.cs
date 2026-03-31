@@ -218,9 +218,10 @@ namespace BuildMetrics.Editor
         /// </summary>
         private static bool ParseAndroidAPK(string apkPath, Dictionary<string, FileCategoryData> categories)
         {
-            if (!apkPath.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+            if (!apkPath.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) &&
+                !apkPath.EndsWith(".aab", StringComparison.OrdinalIgnoreCase))
             {
-                // Might be AAB or directory
+                // Might be a Gradle output directory.
                 if (Directory.Exists(apkPath))
                 {
                     return ParseDirectoryContents(apkPath, categories, CategorizeAndroidFile);
@@ -268,13 +269,13 @@ namespace BuildMetrics.Editor
             }
 
             // DEX files (compiled Java/Kotlin code) - usually 5-10 MB
-            if (lower.StartsWith("classes") && lower.EndsWith(".dex"))
+            if ((lower.StartsWith("classes") || lower.Contains("/dex/classes")) && lower.EndsWith(".dex"))
             {
                 return "scripts"; // Compiled scripts
             }
 
             // Unity data files (scenes, resources, assets)
-            if (lower.StartsWith("assets/bin/data/"))
+            if (lower.StartsWith("assets/bin/data/") || lower.Contains("/assets/bin/data/"))
             {
                 var fileName = System.IO.Path.GetFileName(lower);
 
@@ -301,13 +302,16 @@ namespace BuildMetrics.Editor
             }
 
             // Streaming assets (user-added files, not processed by Unity)
-            if (lower.StartsWith("assets/") && !lower.StartsWith("assets/bin/"))
+            if ((lower.StartsWith("assets/") || lower.Contains("/assets/")) &&
+                !lower.StartsWith("assets/bin/") &&
+                !lower.Contains("/assets/bin/"))
             {
                 return "streamingAssets";
             }
 
             // Android resources (icons, layouts, etc.)
-            if (lower.StartsWith("res/") || lower == "resources.arsc")
+            if (lower.StartsWith("res/") || lower.Contains("/res/") ||
+                lower == "resources.arsc" || lower.EndsWith("/resources.arsc"))
             {
                 return "other"; // Android system resources
             }
@@ -423,6 +427,13 @@ namespace BuildMetrics.Editor
         {
             var lower = path.ToLowerInvariant();
 
+            if (lower.StartsWith("streamingassets/") ||
+                lower.Contains("/streamingassets/") ||
+                lower.Contains("\\streamingassets\\"))
+            {
+                return "streamingAssets";
+            }
+
             // WASM binary (compiled code)
             if (lower.EndsWith(".wasm"))
             {
@@ -469,7 +480,9 @@ namespace BuildMetrics.Editor
                 // Directory (Mac .app bundle)
                 if (outputPath.EndsWith(".app"))
                 {
-                    dataPath = Path.Combine(outputPath, "Contents", "Data");
+                    // Parse the full app bundle so the breakdown covers the executable, runtime files,
+                    // and Data folder instead of leaving most of the app size as "untracked".
+                    return ParseDirectoryContents(outputPath, categories, CategorizeStandaloneFile);
                 }
                 else
                 {
@@ -487,18 +500,18 @@ namespace BuildMetrics.Editor
 
         private static string CategorizeStandaloneFile(string path)
         {
-            var lower = path.ToLowerInvariant();
+            var lower = path.Replace('\\', '/').ToLowerInvariant();
+
+            // Plugins/DLLs
+            if ((lower.StartsWith("managed/") || lower.Contains("/managed/")) && lower.EndsWith(".dll"))
+            {
+                return "scripts";
+            }
 
             // Plugins/DLLs
             if (lower.Contains("/plugins/") || lower.EndsWith(".dll") || lower.EndsWith(".so") || lower.EndsWith(".bundle"))
             {
                 return "plugins";
-            }
-
-            // Managed assemblies
-            if (lower.Contains("/managed/") && lower.EndsWith(".dll"))
-            {
-                return "scripts";
             }
 
             // Unity data files
@@ -507,15 +520,16 @@ namespace BuildMetrics.Editor
                 return "scenes";
             }
 
+            // Streaming assets must win before the generic "resources" check because
+            // macOS app bundles place them under Contents/Resources/Data/StreamingAssets.
+            if (lower.StartsWith("streamingassets/") || lower.Contains("/streamingassets/"))
+            {
+                return "streamingAssets";
+            }
+
             if (lower.Contains("resources") || lower.EndsWith(".resource") || lower.EndsWith(".ress"))
             {
                 return "resources";
-            }
-
-            // Streaming assets
-            if (lower.Contains("/streamingassets/"))
-            {
-                return "streamingAssets";
             }
 
             // Shaders
