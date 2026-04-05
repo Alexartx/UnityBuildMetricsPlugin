@@ -565,20 +565,29 @@ namespace BuildMetrics.Editor
             EditorGUILayout.LabelField("Breakdown", EditorStyles.boldLabel);
 
             var categories = GetFileCategories(build.fileBreakdown);
-            var total = categories.Sum(c => c.Item2);
+            var total = categories.Sum(c => c.size);
 
-            foreach (var category in categories.OrderByDescending(c => c.Item2))
+            foreach (var category in categories.OrderByDescending(c => c.size))
             {
-                var percentage = total > 0 ? (category.Item2 / (float)total) * 100f : 0f;
-                DrawCategoryBar(category.Item1, category.Item2, percentage, category.Item3);
+                var percentage = total > 0 ? (category.size / (float)total) * 100f : 0f;
+                DrawCategoryBar(category.name, category.size, percentage, category.color);
             }
 
             EditorGUILayout.Space(10);
 
             var chartRect = GUILayoutUtility.GetRect(0, 150, GUILayout.ExpandWidth(true));
-            DrawAssetPieChart(chartRect, build);
+            DrawFileBreakdownPieChart(chartRect, categories);
 
             EditorGUILayout.EndVertical();
+        }
+
+        private void DrawFileBreakdownPieChart(Rect rect, List<(string name, long size, Color color)> categories)
+        {
+            if (categories == null || categories.Count == 0) return;
+
+            var data   = categories.ToDictionary(c => c.name, c => c.size);
+            var colors = categories.ToDictionary(c => c.name, c => c.color);
+            ChartRenderer.DrawPieChart(rect, data, colors);
         }
 
         private void DrawAssetBreakdown(BuildRecord build)
@@ -652,33 +661,6 @@ namespace BuildMetrics.Editor
                 Selection.activeObject = asset;
                 EditorGUIUtility.PingObject(asset);
             }
-        }
-
-        private void DrawAssetPieChart(Rect rect, BuildRecord build)
-        {
-            if (build.assetBreakdown == null || !build.assetBreakdown.hasAssets) return;
-
-            var data = new Dictionary<string, long>
-            {
-                ["Textures"] = build.assetBreakdown.textures?.size ?? 0,
-                ["Audio"] = build.assetBreakdown.audio?.size ?? 0,
-                ["Models"] = build.assetBreakdown.models?.size ?? 0,
-                ["Prefabs"] = build.assetBreakdown.prefabs?.size ?? 0,
-                ["Scripts"] = build.assetBreakdown.scripts?.size ?? 0,
-                ["Other"] = build.assetBreakdown.otherAssets?.size ?? 0
-            };
-
-            var colors = new Dictionary<string, Color>
-            {
-                ["Textures"] = new Color(0.6f, 0.4f, 0.8f),
-                ["Audio"] = new Color(0.3f, 0.6f, 0.9f),
-                ["Models"] = new Color(0.3f, 0.8f, 0.5f),
-                ["Prefabs"] = new Color(1f, 0.6f, 0.3f),
-                ["Scripts"] = new Color(0.4f, 0.8f, 0.4f),
-                ["Other"] = new Color(0.5f, 0.5f, 0.5f)
-            };
-
-            ChartRenderer.DrawPieChart(rect, data, colors);
         }
 
         private void DrawCategoryBar(string name, long size, float percentage, Color color)
