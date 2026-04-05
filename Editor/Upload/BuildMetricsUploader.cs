@@ -9,10 +9,7 @@ namespace BuildMetrics.Editor
 {
     public class BuildMetricsUploader
     {
-        /// <summary>
-        /// Local format check only — fast, no network.
-        /// </summary>
-        public static bool ValidateApiKey(string apiKey, out string errorMessage)
+        public static bool ValidateApiKeyFormat(string apiKey, out string errorMessage)
         {
             errorMessage = "";
 
@@ -22,13 +19,13 @@ namespace BuildMetrics.Editor
                 return false;
             }
 
-            if (!apiKey.StartsWith("bm_"))
+            if (!apiKey.StartsWith(BuildMetricsCloudConstants.ApiKeyPrefix))
             {
-                errorMessage = "Invalid API key format (must start with 'bm_')";
+                errorMessage = $"Invalid API key format (must start with '{BuildMetricsCloudConstants.ApiKeyPrefix}')";
                 return false;
             }
 
-            if (apiKey.Length < 20)
+            if (apiKey.Length < BuildMetricsCloudConstants.ApiKeyMinLength)
             {
                 errorMessage = "API key is too short";
                 return false;
@@ -43,8 +40,7 @@ namespace BuildMetrics.Editor
         /// </summary>
         public static void ValidateApiKeyWithServer(string apiKey, Action<bool, string> onResult)
         {
-            // Quick local check first
-            if (!ValidateApiKey(apiKey, out var localError))
+            if (!ValidateApiKeyFormat(apiKey, out var localError))
             {
                 onResult?.Invoke(false, localError);
                 return;
@@ -62,11 +58,9 @@ namespace BuildMetrics.Editor
             {
                 validateUrl = baseUrl.Replace("/api/builds", "/api/validate");
             }
-            var projectsUrl = validateUrl;
-
-            var request = UnityWebRequest.Get(projectsUrl);
+            var request = UnityWebRequest.Get(validateUrl);
             request.SetRequestHeader("Authorization", $"Bearer {apiKey}");
-            request.timeout = 10;
+            request.timeout = BuildMetricsCloudConstants.ApiTimeoutSeconds;
 
             var operation = request.SendWebRequest();
 
@@ -132,8 +126,7 @@ namespace BuildMetrics.Editor
             var apiUrl = BuildMetricsSettings.ApiUrl;
             var apiKey = BuildMetricsSettings.ApiKey;
 
-            // Validate API key
-            if (!ValidateApiKey(apiKey, out string validationError))
+            if (!ValidateApiKeyFormat(apiKey, out string validationError))
             {
                 var msg = $"{validationError}. Get your API key at: {BuildMetricsCloudConstants.DashboardUrl}";
                 Debug.LogWarning($"{BuildMetricsConstants.LogPrefix} {msg}");

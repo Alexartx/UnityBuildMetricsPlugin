@@ -17,6 +17,15 @@ namespace BuildMetrics.Editor
 
             BuildMetricsStatus.OnStatusChanged -= RepaintHistoryWindows;
             BuildMetricsStatus.OnStatusChanged += RepaintHistoryWindows;
+
+            AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+        }
+
+        private static void OnBeforeAssemblyReload()
+        {
+            BuildMetricsExtensions.ReportCaptured -= OnReportCaptured;
+            BuildMetricsStatus.OnStatusChanged -= RepaintHistoryWindows;
+            AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
         }
 
         private static void OnReportCaptured(BuildMetricsCapturedReport capturedReport)
@@ -31,7 +40,7 @@ namespace BuildMetrics.Editor
                 return;
             }
 
-            if (!BuildMetricsUploader.ValidateApiKey(BuildMetricsSettings.ApiKey, out var validationError))
+            if (!BuildMetricsUploader.ValidateApiKeyFormat(BuildMetricsSettings.ApiKey, out var validationError))
             {
                 BuildMetricsCloudStorage.Enqueue(capturedReport.ReportPath);
                 BuildMetricsStatus.SetFailed(validationError);

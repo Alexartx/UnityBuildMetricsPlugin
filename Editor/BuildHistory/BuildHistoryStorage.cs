@@ -12,24 +12,21 @@ namespace BuildMetrics.Editor
     public static class BuildHistoryStorage
     {
         // ── File storage ─────────────────────────────────────────────────────
-        private const string HistoryFileName = "history.json";
-        private const string StorageFolder   = "BuildMetrics";
+        private const string HistoryFileName    = "history.json";
+        private const string HistoryTempSuffix  = ".tmp";   // written first, renamed atomically
+        private const string StorageFolder      = "BuildMetrics";
 
         private static BuildHistoryData cachedHistory;
 
-        /// <summary>Absolute path to Library/BuildMetrics/history.json</summary>
-        private static string HistoryFilePath
+        private static string GetOrCreateHistoryFilePath()
         {
-            get
-            {
-                // Application.dataPath ends in "/Assets"; Library is one level up
-                var libraryDir = Path.Combine(
-                    Path.GetDirectoryName(Application.dataPath) ?? Application.dataPath,
-                    "Library",
-                    StorageFolder);
-                Directory.CreateDirectory(libraryDir);
-                return Path.Combine(libraryDir, HistoryFileName);
-            }
+            // Application.dataPath ends in "/Assets"; Library is one level up
+            var libraryDir = Path.Combine(
+                Path.GetDirectoryName(Application.dataPath) ?? Application.dataPath,
+                "Library",
+                StorageFolder);
+            Directory.CreateDirectory(libraryDir);
+            return Path.Combine(libraryDir, HistoryFileName);
         }
 
         // ── Public API ───────────────────────────────────────────────────────
@@ -48,8 +45,20 @@ namespace BuildMetrics.Editor
             try
             {
                 cachedHistory = history;
-                var json = JsonUtility.ToJson(history, prettyPrint: false);
-                File.WriteAllText(HistoryFilePath, json, Encoding.UTF8);
+
+                var historyPath = GetOrCreateHistoryFilePath();
+                var tmpPath     = historyPath + HistoryTempSuffix;
+                var json        = JsonUtility.ToJson(history, prettyPrint: false);
+
+                // Write to a temp file first so a crash mid-write never corrupts the real file.
+                File.WriteAllText(tmpPath, json, Encoding.UTF8);
+
+                // File.Replace atomically swaps tmp → history.json (POSIX rename semantics).
+                // Use File.Move on first run when no destination file exists yet.
+                if (File.Exists(historyPath))
+                    File.Replace(tmpPath, historyPath, destinationBackupFileName: null);
+                else
+                    File.Move(tmpPath, historyPath);
             }
             catch (Exception ex)
             {
@@ -80,7 +89,7 @@ namespace BuildMetrics.Editor
 
         private static BuildHistoryData LoadFromFile()
         {
-            var path = HistoryFilePath;
+            var path = GetOrCreateHistoryFilePath();
 
             // ── Attempt to load from file ────────────────────────────────────
             if (File.Exists(path))

@@ -11,23 +11,18 @@ namespace BuildMetrics.Editor
         private const string ApiUrlPref = "BuildMetrics.ApiUrl";
         private const string AutoUploadPrefBase = "BuildMetrics.AutoUpload";
 
-        // Environment variable names
         private const string ApiKeyEnvVar = "BUILD_METRICS_API_KEY";
         private const string ApiUrlEnvVar = "BUILD_METRICS_API_URL";
 
-        /// <summary>
-        /// Get project-specific EditorPrefs key to isolate settings per-project.
-        /// Uses hash of project path to create unique key for each Unity project.
-        /// </summary>
+        private const int ProjectKeyHashLength = 8;
+
         private static string GetProjectSpecificKey(string baseKey)
         {
             var projectPath = UnityEngine.Application.dataPath; // Ends with "/Assets"
-
-            // Create short hash of project path (8 characters is enough for uniqueness)
             using (var md5 = MD5.Create())
             {
                 var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(projectPath));
-                var hashString = BitConverter.ToString(hash).Replace("-", "").Substring(0, 8);
+                var hashString = BitConverter.ToString(hash).Replace("-", "").Substring(0, ProjectKeyHashLength);
                 return $"{baseKey}.{hashString}";
             }
         }

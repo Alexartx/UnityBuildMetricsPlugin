@@ -22,13 +22,10 @@ namespace BuildMetrics.Editor
             // Show wizard on first launch if API key is not configured
             EditorApplication.delayCall += () =>
             {
-                // Check if API key is configured
                 bool hasApiKey = !string.IsNullOrEmpty(BuildMetricsSettings.ApiKey);
-
                 // Check if user explicitly dismissed setup (different from completing it)
                 bool userDismissedSetup = EditorPrefs.GetBool(BuildMetricsCloudConstants.SetupDismissedPref, false);
 
-                // Only auto-show if no API key AND user hasn't explicitly dismissed
                 if (!hasApiKey && !userDismissedSetup)
                 {
                     ShowWizard();
@@ -39,8 +36,8 @@ namespace BuildMetrics.Editor
         public static void ShowWizard()
         {
             var window = GetWindow<BuildMetricsSetupWizard>(true, "Build Metrics Setup", true);
-            window.minSize = new Vector2(500, 400);
-            window.maxSize = new Vector2(500, 400);
+            window.minSize = new Vector2(BuildMetricsCloudConstants.WizardWidth, BuildMetricsCloudConstants.WizardHeight);
+            window.maxSize = new Vector2(BuildMetricsCloudConstants.WizardWidth, BuildMetricsCloudConstants.WizardHeight);
             window.Show();
         }
 
@@ -64,14 +61,12 @@ namespace BuildMetrics.Editor
             {
                 string clipboard = EditorGUIUtility.systemCopyBuffer;
 
-                // Check if clipboard contains a Build Metrics API key
                 if (!string.IsNullOrEmpty(clipboard) &&
-                    clipboard.Trim().StartsWith("bm_") &&
-                    clipboard.Trim().Length > 20)
+                    clipboard.Trim().StartsWith(BuildMetricsCloudConstants.ApiKeyPrefix) &&
+                    clipboard.Trim().Length > BuildMetricsCloudConstants.ApiKeyMinLength)
                 {
                     clipboardKey = clipboard.Trim();
 
-                    // Only show banner if current API key is empty
                     if (string.IsNullOrEmpty(apiKey))
                     {
                         showClipboardBanner = true;
@@ -106,19 +101,15 @@ namespace BuildMetrics.Editor
                 BuildMetricsSettings.AutoUpload = autoUpload;
             }
 
-            // Update setup status based on whether API key is configured
             if (!string.IsNullOrEmpty(BuildMetricsSettings.ApiKey))
             {
                 // Clear the dismissed flag so wizard can show again if API key is removed later
                 EditorPrefs.DeleteKey(BuildMetricsCloudConstants.SetupDismissedPref);
-
-                // Mark setup as complete
                 EditorPrefs.SetBool(BuildMetricsCloudConstants.SetupCompletePref, true);
             }
             else
             {
-                // No API key configured - mark as dismissed
-                // (so it doesn't keep popping up on every editor restart)
+                // No API key — mark as dismissed so it doesn't reappear on every editor restart
                 EditorPrefs.SetBool(BuildMetricsCloudConstants.SetupDismissedPref, true);
             }
         }
@@ -127,7 +118,6 @@ namespace BuildMetrics.Editor
         {
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
 
-            // Header
             GUILayout.Space(10);
             GUILayout.Label("Welcome to Build Metrics!", EditorStyles.boldLabel);
             GUILayout.Space(5);
@@ -139,74 +129,65 @@ namespace BuildMetrics.Editor
 
             GUILayout.Space(15);
 
-            // Clipboard detection banner (opt-in)
-            if (showClipboardBanner)
-            {
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            DrawClipboardBanner();
+            DrawApiKeySection();
+            DrawAutoUploadSection();
+            DrawFooterButtons();
 
-                GUILayout.Label("🔑 API Key Detected in Clipboard", EditorStyles.boldLabel);
-                GUILayout.Space(3);
+            GUILayout.Space(10);
 
-                EditorGUILayout.LabelField(
-                    "Found a Build Metrics API key in your clipboard. Would you like to use it?",
-                    EditorStyles.wordWrappedLabel
-                );
+            EditorGUILayout.EndScrollView();
+        }
 
-                GUILayout.Space(5);
+        private void DrawClipboardBanner()
+        {
+            if (!showClipboardBanner) return;
 
-                EditorGUILayout.BeginHorizontal();
-
-                if (GUILayout.Button("Use This Key", GUILayout.Height(25), GUILayout.Width(120)))
-                {
-                    UseClipboardKey();
-                }
-
-                if (GUILayout.Button("No Thanks", GUILayout.Height(25), GUILayout.Width(100)))
-                {
-                    DismissClipboardBanner();
-                }
-
-                GUILayout.FlexibleSpace();
-
-                EditorGUILayout.EndHorizontal();
-
-                EditorGUILayout.EndVertical();
-
-                GUILayout.Space(15);
-            }
-
-            // Step 1: Get API Key
-            GUILayout.Label("Step 1: Get Your API Key", EditorStyles.boldLabel);
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            GUILayout.Label("🔑 API Key Detected in Clipboard", EditorStyles.boldLabel);
+            GUILayout.Space(3);
+            EditorGUILayout.LabelField(
+                "Found a Build Metrics API key in your clipboard. Would you like to use it?",
+                EditorStyles.wordWrappedLabel
+            );
             GUILayout.Space(5);
 
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Use This Key", GUILayout.Height(25), GUILayout.Width(120)))
+                UseClipboardKey();
+            if (GUILayout.Button("No Thanks", GUILayout.Height(25), GUILayout.Width(100)))
+                DismissClipboardBanner();
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.EndVertical();
+            GUILayout.Space(15);
+        }
+
+        private void DrawApiKeySection()
+        {
+            GUILayout.Label("Step 1: Get Your API Key", EditorStyles.boldLabel);
+            GUILayout.Space(5);
             EditorGUILayout.HelpBox(
                 "Sign up for a free account to get your API key (100 builds/month free for indie developers).",
                 MessageType.Info
             );
-
             GUILayout.Space(5);
-
             if (GUILayout.Button("Open Dashboard to Get API Key", GUILayout.Height(30)))
-            {
                 Application.OpenURL(BuildMetricsCloudConstants.DashboardUrl);
-            }
 
             GUILayout.Space(15);
 
-            // Step 2: Enter API Key
             GUILayout.Label("Step 2: Enter Your API Key", EditorStyles.boldLabel);
             GUILayout.Space(5);
 
-            // Check if using environment variable
             bool usingEnvVar = BuildMetricsSettings.IsUsingEnvironmentApiKey();
-
             if (usingEnvVar)
             {
                 EditorGUILayout.HelpBox(
                     "✓ API key detected from environment variable BUILD_METRICS_API_KEY\n\n" +
                     "Environment variable takes priority. You can skip this setup.",
                     MessageType.Info);
-
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.Label("API Key:", GUILayout.Width(80));
                 GUI.enabled = false;
@@ -223,12 +204,8 @@ namespace BuildMetrics.Editor
             }
 
             GUILayout.Space(5);
-
             if (GUILayout.Button("Validate API Key", GUILayout.Height(25)))
-            {
                 ValidateApiKey();
-            }
-
             if (!string.IsNullOrEmpty(validationMessage))
             {
                 GUILayout.Space(5);
@@ -236,11 +213,12 @@ namespace BuildMetrics.Editor
             }
 
             GUILayout.Space(15);
+        }
 
-            // Step 3: Configure Settings
+        private void DrawAutoUploadSection()
+        {
             GUILayout.Label("Step 3: Configure Upload Settings", EditorStyles.boldLabel);
             GUILayout.Space(5);
-
             autoUpload = EditorGUILayout.Toggle("Auto-upload after builds", autoUpload);
             EditorGUILayout.HelpBox(
                 autoUpload
@@ -248,17 +226,14 @@ namespace BuildMetrics.Editor
                     : "You'll need to manually upload metrics via Tools → Build Metrics → Upload Last Build.",
                 MessageType.Info
             );
-
             GUILayout.Space(20);
+        }
 
-            // Footer Buttons
+        private void DrawFooterButtons()
+        {
             EditorGUILayout.BeginHorizontal();
-
             if (GUILayout.Button("Documentation", GUILayout.Height(30)))
-            {
                 Application.OpenURL(BuildMetricsCloudConstants.DocsUrl);
-            }
-
             if (GUILayout.Button("Skip Setup", GUILayout.Height(30)))
             {
                 if (EditorUtility.DisplayDialog(
@@ -271,21 +246,11 @@ namespace BuildMetrics.Editor
                     Close();
                 }
             }
-
             GUILayout.FlexibleSpace();
-
             EditorGUILayout.EndHorizontal();
 
-            // Auto-save info
             GUILayout.Space(5);
-            EditorGUILayout.HelpBox(
-                "Settings are saved automatically when you close this window.",
-                MessageType.Info
-            );
-
-            GUILayout.Space(10);
-
-            EditorGUILayout.EndScrollView();
+            EditorGUILayout.HelpBox("Settings are saved automatically when you close this window.", MessageType.Info);
         }
 
         private void ValidateApiKey()

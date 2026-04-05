@@ -7,6 +7,15 @@ namespace BuildMetrics.Editor
     {
         public int Order => 100;
 
+        private const int DashboardButtonWidth = 120;
+        private const int FixSetupButtonWidth = 90;
+        private const int UploadPendingButtonWidth = 110;
+        private const int DismissButtonWidth = 24;
+
+        private static readonly Color UploadingColor = new Color(0.15f, 0.45f, 0.85f);
+        private static readonly Color SuccessColor   = new Color(0.15f, 0.55f, 0.2f);
+        private static readonly Color FailedColor    = new Color(0.85f, 0.2f, 0.2f);
+
         public void DrawTopPanel(BuildMetricsWindow window)
         {
             var state = BuildMetricsStatus.LastUploadState;
@@ -33,25 +42,25 @@ namespace BuildMetrics.Editor
 
             if (state == BuildMetricsStatus.UploadState.Success)
             {
-                if (GUILayout.Button("View Dashboard", GUILayout.Width(120)))
+                if (GUILayout.Button("View Dashboard", GUILayout.Width(DashboardButtonWidth)))
                 {
                     Application.OpenURL(BuildMetricsCloudConstants.DashboardUrl);
                 }
             }
             else if (state == BuildMetricsStatus.UploadState.Failed)
             {
-                if (GUILayout.Button("Fix Setup", GUILayout.Width(90)))
+                if (GUILayout.Button("Fix Setup", GUILayout.Width(FixSetupButtonWidth)))
                 {
                     BuildMetricsSetupWizard.ShowWizard();
                 }
             }
 
-            if (pendingCount > 0 && GUILayout.Button("Upload Pending", GUILayout.Width(110)))
+            if (pendingCount > 0 && GUILayout.Button("Upload Pending", GUILayout.Width(UploadPendingButtonWidth)))
             {
                 BuildMetricsUploader.TryUploadPending();
             }
 
-            if (GUILayout.Button("x", GUILayout.Width(24)))
+            if (GUILayout.Button("x", GUILayout.Width(DismissButtonWidth)))
             {
                 BuildMetricsStatus.Clear();
             }
@@ -63,12 +72,9 @@ namespace BuildMetrics.Editor
         {
             switch (state)
             {
-                case BuildMetricsStatus.UploadState.Uploading:
-                    return new Color(0.15f, 0.45f, 0.85f);
-                case BuildMetricsStatus.UploadState.Success:
-                    return new Color(0.15f, 0.55f, 0.2f);
-                default:
-                    return new Color(0.85f, 0.2f, 0.2f);
+                case BuildMetricsStatus.UploadState.Uploading: return UploadingColor;
+                case BuildMetricsStatus.UploadState.Success:   return SuccessColor;
+                default:                                        return FailedColor;
             }
         }
 

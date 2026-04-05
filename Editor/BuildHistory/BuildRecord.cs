@@ -32,7 +32,7 @@ namespace BuildMetrics.Editor
         {
             get
             {
-                var elapsed = DateTime.Now - Timestamp;
+                var elapsed = DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds(timestampUnix);
                 if (elapsed.TotalMinutes < 1) return "just now";
                 if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes}m ago";
                 if (elapsed.TotalHours < 24) return $"{(int)elapsed.TotalHours}h ago";

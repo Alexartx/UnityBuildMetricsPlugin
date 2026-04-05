@@ -21,7 +21,7 @@ namespace BuildMetrics.Editor
             CombineAssetPath(InstallRoot, "Documentation~/offline-features.md"),
             CombineAssetPath(InstallRoot, "Documentation/offline-features.md"));
 
-        public static Object LoadPrimaryDocumentationAsset()
+        public static Object LoadPreferredDocumentationAsset()
         {
             return AssetDatabase.LoadAssetAtPath<Object>(InstallationGuideAssetPath)
                 ?? AssetDatabase.LoadAssetAtPath<Object>(ReadmeAssetPath);

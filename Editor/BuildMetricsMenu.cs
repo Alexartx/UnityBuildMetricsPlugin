@@ -19,7 +19,7 @@ namespace BuildMetrics.Editor
         [MenuItem(MenuRoot + "Documentation", false, MenuPriority + 21)]
         public static void OpenDocumentation()
         {
-            var asset = BuildMetricsPackagePaths.LoadPrimaryDocumentationAsset();
+            var asset = BuildMetricsPackagePaths.LoadPreferredDocumentationAsset();
 
             if (asset == null)
             {
