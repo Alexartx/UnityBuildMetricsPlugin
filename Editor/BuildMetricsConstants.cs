@@ -2,7 +2,7 @@ namespace BuildMetrics.Editor
 {
     public static class BuildMetricsConstants
     {
-        public const string Version = "1.1.0";
+        public const string Version = "1.1.1";
         public const string SupportEmail = "support@moonlightember.com";
         public const string LogPrefix = "[BuildMetrics]";
 

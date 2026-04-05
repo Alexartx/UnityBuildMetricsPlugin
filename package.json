@@ -1,6 +1,6 @@
 {
   "name": "com.buildmetrics.unity-plugin",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "displayName": "Build Metrics",
   "description": "Cloud-enabled Unity build metrics with local history, file and asset breakdowns, dashboard uploads, and CI/CD setup guidance.",
   "unity": "2022.2",
