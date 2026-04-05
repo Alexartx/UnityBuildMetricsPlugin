@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Build history file is now written atomically — a Unity crash mid-write can no longer corrupt
   an existing `history.json` file.
+- File breakdown pie chart now correctly renders colored segments; previously appeared as a flat
+  grey circle due to reading from the wrong data source.
 
 ## [1.1.0] - 2026-03-31
 
